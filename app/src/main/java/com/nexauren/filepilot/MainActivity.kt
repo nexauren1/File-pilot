@@ -726,7 +726,9 @@ private fun FileRow(
             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = SecondaryText) }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.action_move_safe)) }, onClick = { menuExpanded = false; onMoveToSafeFolder() })
+                if (!entry.isDirectory) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_move_safe)) }, onClick = { menuExpanded = false; onMoveToSafeFolder() })
+                }
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_rename)) }, onClick = { menuExpanded = false; onRename() })
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_delete)) }, onClick = { menuExpanded = false; onDelete() })
             }
