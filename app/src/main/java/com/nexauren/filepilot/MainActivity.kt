@@ -1002,8 +1002,6 @@ private fun FilePilotApp() {
         }
     }
 
-    }
-
     if (renameTarget != null) {
         AlertDialog(
             onDismissRequest = { renameTarget = null },
