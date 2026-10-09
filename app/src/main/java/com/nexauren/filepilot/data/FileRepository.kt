@@ -60,6 +60,41 @@ object FileRepository {
         }
     }
 
+    /**
+     * Returns files from nested folders without returning directory rows.
+     * Used for category views such as Videos and Images, which should behave as collections.
+     * The traversal is bounded to avoid scanning a whole device indefinitely.
+     */
+    fun listFilesRecursively(
+        context: Context,
+        rootLocation: String,
+        maxFiles: Int = 2500,
+        maxDepth: Int = 8,
+    ): List<FileEntry> {
+        val queue = ArrayDeque<Pair<String, Int>>()
+        val visitedDirectories = HashSet<String>()
+        val files = mutableListOf<FileEntry>()
+        queue.add(rootLocation to 0)
+        while (queue.isNotEmpty() && files.size < maxFiles) {
+            val (location, depth) = queue.removeFirst()
+            if (!visitedDirectories.add(location)) continue
+            val children = listChildren(context, location)
+            for (entry in children) {
+                if (files.size >= maxFiles) break
+                if (entry.isDirectory) {
+                    val normalized = entry.location.replace('\\\\', '/').lowercase()
+                    val restricted = normalized.contains("/android/data") ||
+                        normalized.contains("/android/obb") ||
+                        normalized.contains("/.thumbnails")
+                    if (depth < maxDepth && !restricted) queue.add(entry.location to depth + 1)
+                } else {
+                    files.add(entry)
+                }
+            }
+        }
+        return files.sortedWith(compareBy<FileEntry> { it.name.lowercase() }.thenBy { it.location })
+    }
+
     fun rename(context: Context, entry: FileEntry, newName: String): Result<Unit> = runCatching {
         require(newName.isNotBlank() && newName == newName.trim()) { "Invalid name." }
         require(!newName.contains('/') && !newName.contains('\\')) { "Invalid characters." }
