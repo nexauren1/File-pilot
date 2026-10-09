@@ -86,4 +86,14 @@
     <string name="vault_delete_title">Eliminar da Pasta Segura?</string>
     <string name="vault_delete_body">Esta ação elimina permanentemente a cópia cifrada de %1$s.</string>
     <string name="vault_delete_success">Ficheiro cifrado eliminado.</string>
+
+    <string name="action_copy_to">Copiar para pasta</string>
+    <string name="action_move_to">Mover para pasta</string>
+    <string name="copy_success">Ficheiro copiado para a pasta escolhida.</string>
+    <string name="move_success">Ficheiro movido para a pasta escolhida.</string>
+    <string name="move_partial">Ficheiro copiado, mas não foi possível remover o original.</string>
+    <string name="new_folder">Nova pasta</string>
+    <string name="new_folder_hint">Nome da pasta</string>
+    <string name="folder_created">Pasta criada.</string>
+    <string name="create_action">Criar</string>
 </resources>
