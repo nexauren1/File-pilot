@@ -82,7 +82,7 @@ object FileRepository {
             for (entry in children) {
                 if (files.size >= maxFiles) break
                 if (entry.isDirectory) {
-                    val normalized = entry.location.replace('\\\\', '/').lowercase()
+                    val normalized = entry.location.replace('\\', '/').lowercase()
                     val restricted = normalized.contains("/android/data") ||
                         normalized.contains("/android/obb") ||
                         normalized.contains("/.thumbnails")
