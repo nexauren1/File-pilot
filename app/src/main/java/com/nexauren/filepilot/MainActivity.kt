@@ -743,6 +743,13 @@ private fun FilePilotApp() {
                     runCatching { context.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName"))) }
                         .onFailure { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) } }
                 },
+                onLaunch = { packageName ->
+                    runCatching {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+                            ?: throw ActivityNotFoundException("No launcher activity for $packageName")
+                        context.startActivity(launchIntent)
+                    }.onFailure { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) } }
+                },
             )
             AppTab.SECURITY -> SecurityScreen(
                 modifier = Modifier.padding(padding),
