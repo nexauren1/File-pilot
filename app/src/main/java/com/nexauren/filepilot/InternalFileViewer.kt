@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -73,6 +74,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -133,7 +135,7 @@ private fun viewerType(entry: FileEntry): InternalViewerType {
 private fun openUri(context: Context, entry: FileEntry): Uri = FileRepository.shareUri(context, entry)
 
 @Composable
-private fun ViewerPanel(modifier: Modifier, content: @Composable () -> Unit) {
+private fun ViewerPanel(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = modifier.fillMaxSize().background(ViewerPage).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -161,13 +163,13 @@ private fun PdfDocumentReader(modifier: Modifier, entry: FileEntry) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("PDF", color = ViewerMuted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.pdf_label), color = ViewerMuted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) {
-                    Icon(Icons.Outlined.SkipPrevious, contentDescription = "Previous page")
+                    Icon(Icons.Outlined.SkipPrevious, contentDescription = stringResource(R.string.pdf_previous_page))
                 }
                 Text(
-                    result?.let { "${currentPage + 1} / ${it.pageCount}" } ?: "— / —",
+                    result?.let { context.getString(R.string.pdf_page_count, currentPage + 1, it.pageCount) } ?: "— / —",
                     color = ViewerInk,
                     style = MaterialTheme.typography.labelLarge,
                 )
@@ -175,7 +177,7 @@ private fun PdfDocumentReader(modifier: Modifier, entry: FileEntry) {
                     onClick = { result?.let { currentPage = (currentPage + 1).coerceAtMost(it.pageCount - 1) } },
                     enabled = result != null && currentPage < (result?.pageCount ?: 1) - 1,
                 ) {
-                    Icon(Icons.Outlined.SkipNext, contentDescription = "Next page")
+                    Icon(Icons.Outlined.SkipNext, contentDescription = stringResource(R.string.pdf_next_page))
                 }
             }
         }
@@ -199,7 +201,7 @@ private fun PdfDocumentReader(modifier: Modifier, entry: FileEntry) {
         Text(entry.name, color = ViewerMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (result == null) {
             TextButton(onClick = { refresh++ }, modifier = Modifier.align(Alignment.End)) {
-                Text("Try again")
+                Text(stringResource(R.string.viewer_try_again))
             }
         }
     }
@@ -294,9 +296,9 @@ private fun ImageDocumentReader(modifier: Modifier, entry: FileEntry) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(entry.name, color = ViewerInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Pinch to zoom · Double-tap to reset", color = ViewerMuted, style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.image_zoom_hint), color = ViewerMuted, style = MaterialTheme.typography.labelSmall)
             }
-            TextButton(onClick = { scale = 1f; offsetX = 0f; offsetY = 0f }) { Text("Reset zoom") }
+            TextButton(onClick = { scale = 1f; offsetX = 0f; offsetY = 0f }) { Text(stringResource(R.string.image_reset_zoom)) }
         }
     }
 }
@@ -374,7 +376,10 @@ private fun AudioDocumentPlayer(modifier: Modifier, entry: FileEntry) {
                     Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = ViewerPurple, modifier = Modifier.size(86.dp))
                 }
                 Text(entry.name, color = ViewerInk, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                Text(if (failed) "This audio format could not be played." else if (prepared) "Audio ready" else "Preparing audio…", color = ViewerMuted)
+                Text(
+                    stringResource(when { failed -> R.string.audio_failed; prepared -> R.string.audio_ready; else -> R.string.audio_preparing }),
+                    color = ViewerMuted,
+                )
                 if (!prepared && !failed) CircularProgressIndicator(color = ViewerPurple)
             }
         }
@@ -401,7 +406,7 @@ private fun AudioDocumentPlayer(modifier: Modifier, entry: FileEntry) {
                 position = (position - 10_000).coerceAtLeast(0)
                 runCatching { player?.seekTo(position) }
             }, enabled = prepared && !failed) {
-                Icon(Icons.Outlined.SkipPrevious, contentDescription = "Back 10 seconds")
+                Icon(Icons.Outlined.SkipPrevious, contentDescription = stringResource(R.string.audio_back_10))
             }
             IconButton(
                 onClick = {
@@ -421,7 +426,7 @@ private fun AudioDocumentPlayer(modifier: Modifier, entry: FileEntry) {
             ) {
                 Icon(
                     if (playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-                    contentDescription = if (playing) "Pause" else "Play",
+                    contentDescription = stringResource(if (playing) R.string.audio_pause else R.string.audio_play),
                     tint = Color.White,
                     modifier = Modifier.size(40.dp),
                 )
@@ -430,7 +435,7 @@ private fun AudioDocumentPlayer(modifier: Modifier, entry: FileEntry) {
                 position = (position + 10_000).coerceAtMost(duration)
                 runCatching { player?.seekTo(position) }
             }, enabled = prepared && !failed) {
-                Icon(Icons.Outlined.SkipNext, contentDescription = "Forward 10 seconds")
+                Icon(Icons.Outlined.SkipNext, contentDescription = stringResource(R.string.audio_forward_10))
             }
         }
     }
@@ -468,7 +473,7 @@ private fun VideoDocumentPlayer(modifier: Modifier, entry: FileEntry) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 14.dp),
         )
-        Text("Use the playback controls to play or seek.", color = Color(0xFFCBCBD7), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.video_playback_hint), color = Color(0xFFCBCBD7), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -488,7 +493,7 @@ private fun TextDocumentReader(modifier: Modifier, entry: FileEntry) {
                                 append(buffer, 0, count.coerceAtMost(limit - length))
                                 count = if (length < limit) reader.read(buffer) else -1
                             }
-                            if (count >= 0) append("\n\n[Preview shortened to 1 MB of text.]")
+                            if (count >= 0) append("\n\n" + context.getString(R.string.text_preview_shortened))
                         }
                     }
                 } ?: error("File unavailable.")
@@ -499,7 +504,7 @@ private fun TextDocumentReader(modifier: Modifier, entry: FileEntry) {
         modifier = modifier.fillMaxSize().background(ViewerPage).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("TEXT PREVIEW", color = ViewerMuted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.text_preview_title), color = ViewerMuted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
         Card(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -546,7 +551,7 @@ private fun ZipDocumentPreview(modifier: Modifier, entry: FileEntry, onOpenExter
             Icon(Icons.Outlined.Archive, contentDescription = null, tint = ViewerPurple, modifier = Modifier.size(36.dp))
             Column(Modifier.weight(1f)) {
                 Text(entry.name, color = ViewerInk, fontWeight = FontWeight.Bold)
-                Text("ZIP archive · preview up to 250 entries", color = ViewerMuted, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.zip_preview_subtitle), color = ViewerMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
         Card(
@@ -556,7 +561,7 @@ private fun ZipDocumentPreview(modifier: Modifier, entry: FileEntry, onOpenExter
             if (fileNames == null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = ViewerPurple) }
             } else if (fileNames!!.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No entries could be previewed.", color = ViewerMuted) }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.zip_preview_empty), color = ViewerMuted) }
             } else {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp)) {
                     fileNames!!.forEach { name ->
@@ -567,7 +572,7 @@ private fun ZipDocumentPreview(modifier: Modifier, entry: FileEntry, onOpenExter
         }
         Button(onClick = onOpenExternal, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.FileOpen, contentDescription = null)
-            Text("Open with another app", modifier = Modifier.padding(start = 8.dp))
+            Text(stringResource(R.string.open_with_another_app), modifier = Modifier.padding(start = 8.dp))
         }
     }
 }
@@ -613,14 +618,14 @@ private fun ExternalDocumentCard(modifier: Modifier, entry: FileEntry, onOpenExt
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = ViewerPurple, modifier = Modifier.size(28.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("This file needs a compatible app", color = ViewerInk, fontWeight = FontWeight.SemiBold)
-                    Text("FilePilot can preview common media, PDFs, text and ZIP archives. Use another installed app for this format.", color = ViewerMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.external_viewer_title), color = ViewerInk, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.external_viewer_body), color = ViewerMuted, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
         Button(onClick = onOpenExternal, modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
             Icon(Icons.Outlined.FileOpen, contentDescription = null)
-            Text("Open with another app", modifier = Modifier.padding(start = 8.dp))
+            Text(stringResource(R.string.open_with_another_app), modifier = Modifier.padding(start = 8.dp))
         }
     }
 }
