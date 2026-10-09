@@ -48,9 +48,10 @@ jobs:
           curl --fail --location --retry 3 --output /tmp/gradle-8.13-bin.zip https://services.gradle.org/distributions/gradle-8.13-bin.zip
           unzip -q /tmp/gradle-8.13-bin.zip -d /tmp
 
-      - name: Run unit tests and build APK variants
+      - name: Build production-package beta APK
         run: |
-          /tmp/gradle-8.13/bin/gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+          # Unit tests and the debug variant run in the separate Android build workflow.
+          /tmp/gradle-8.13/bin/gradle --no-daemon --max-workers=2 :app:assembleRelease
 
       - name: Verify release APK signature and package metadata
         shell: bash
