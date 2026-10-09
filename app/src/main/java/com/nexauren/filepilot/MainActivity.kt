@@ -578,6 +578,7 @@ private fun FilePilotApp() {
                 onOpenRecents = { tabName = AppTab.RECENTS.name },
                 onOpenFavorites = { tabName = AppTab.FAVORITES.name },
                 onOpenSafeFolder = { vaultPendingMove = null; tabName = AppTab.SAFE.name },
+                onOpenApps = { tabName = AppTab.APPS.name },
                 recentFiles = recentEntries,
                 onOpenRecentEntry = ::openEntry,
                 onCategory = { category ->
@@ -908,6 +909,7 @@ private fun HomeScreen(
     onOpenRecents: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSafeFolder: () -> Unit,
+    onOpenApps: () -> Unit,
     recentFiles: List<FileEntry>,
     onOpenRecentEntry: (FileEntry) -> Unit,
     onCategory: (FileCategory) -> Unit,
@@ -937,6 +939,15 @@ private fun HomeScreen(
                 pair.forEach { category -> CategoryCard(category, Modifier.weight(1f)) { onCategory(category) } }
             }
         }
+        CollectionCard(
+            title = stringResource(R.string.apps_title),
+            subtitle = stringResource(R.string.apps_description),
+            icon = Icons.Outlined.Apps,
+            tint = Color(0xFFE4ECFF),
+            accent = Color(0xFF315FB8),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onOpenApps,
+        )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.recent_files_section), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
