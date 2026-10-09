@@ -70,6 +70,7 @@ internal fun SecureFolderScreen(
     pendingMove: FileEntry?,
     onMoveHandled: () -> Unit,
     onMessage: (String) -> Unit,
+    onProcessing: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -91,21 +92,26 @@ internal fun SecureFolderScreen(
         if (uri != null && unlocked && sessionPin.isNotEmpty()) {
             scope.launch {
                 busy = true
-                val file = DocumentFile.fromSingleUri(context, uri)
-                val name = file?.name ?: "file"
-                val mime = context.contentResolver.getType(uri)
-                val result = withContext(Dispatchers.IO) {
-                    SecureFolderRepository.addUri(context, uri, name, mime, sessionPin)
-                }
-                result.onSuccess {
-                    records = withContext(Dispatchers.IO) {
-                        SecureFolderRepository.unlock(context, sessionPin).getOrDefault(emptyList())
+                onProcessing(true)
+                try {
+                    val file = DocumentFile.fromSingleUri(context, uri)
+                    val name = file?.name ?: "file"
+                    val mime = context.contentResolver.getType(uri)
+                    val result = withContext(Dispatchers.IO) {
+                        SecureFolderRepository.addUri(context, uri, name, mime, sessionPin)
                     }
-                    onMessage(context.getString(R.string.vault_add_success))
-                }.onFailure {
-                    onMessage(context.getString(R.string.vault_operation_error))
+                    result.onSuccess {
+                        records = withContext(Dispatchers.IO) {
+                            SecureFolderRepository.unlock(context, sessionPin).getOrDefault(emptyList())
+                        }
+                        onMessage(context.getString(R.string.vault_add_success))
+                    }.onFailure {
+                        onMessage(context.getString(R.string.vault_operation_error))
+                    }
+                } finally {
+                    busy = false
+                    onProcessing(false)
                 }
-                busy = false
             }
         }
     }
@@ -117,15 +123,20 @@ internal fun SecureFolderScreen(
         if (uri != null && item != null && sessionPin.isNotEmpty()) {
             scope.launch {
                 busy = true
-                val result = withContext(Dispatchers.IO) {
-                    SecureFolderRepository.restoreToUri(context, item, sessionPin, uri)
+                onProcessing(true)
+                try {
+                    val result = withContext(Dispatchers.IO) {
+                        SecureFolderRepository.restoreToUri(context, item, sessionPin, uri)
+                    }
+                    onMessage(
+                        if (result.isSuccess) context.getString(R.string.vault_restore_success)
+                        else context.getString(R.string.vault_operation_error),
+                    )
+                    restoreTarget = null
+                } finally {
+                    busy = false
+                    onProcessing(false)
                 }
-                onMessage(
-                    if (result.isSuccess) context.getString(R.string.vault_restore_success)
-                    else context.getString(R.string.vault_operation_error),
-                )
-                restoreTarget = null
-                busy = false
             }
         } else {
             restoreTarget = null
@@ -142,22 +153,27 @@ internal fun SecureFolderScreen(
 
         processedMoveLocation = entry.location
         busy = true
-        val result = withContext(Dispatchers.IO) {
-            SecureFolderRepository.moveEntry(context, entry, sessionPin)
-        }
-        result.onSuccess { moved: SecureMoveResult ->
-            records = withContext(Dispatchers.IO) {
-                SecureFolderRepository.unlock(context, sessionPin).getOrDefault(emptyList())
+        onProcessing(true)
+        try {
+            val result = withContext(Dispatchers.IO) {
+                SecureFolderRepository.moveEntry(context, entry, sessionPin)
             }
-            onMessage(
-                if (moved.sourceRemoved) context.getString(R.string.vault_move_success)
-                else context.getString(R.string.vault_move_partial),
-            )
-        }.onFailure {
-            onMessage(context.getString(R.string.vault_operation_error))
+            result.onSuccess { moved: SecureMoveResult ->
+                records = withContext(Dispatchers.IO) {
+                    SecureFolderRepository.unlock(context, sessionPin).getOrDefault(emptyList())
+                }
+                onMessage(
+                    if (moved.sourceRemoved) context.getString(R.string.vault_move_success)
+                    else context.getString(R.string.vault_move_partial),
+                )
+            }.onFailure {
+                onMessage(context.getString(R.string.vault_operation_error))
+            }
+        } finally {
+            busy = false
+            onProcessing(false)
+            onMoveHandled()
         }
-        busy = false
-        onMoveHandled()
     }
 
     Column(
@@ -217,23 +233,28 @@ internal fun SecureFolderScreen(
                             errorMessage = context.getString(R.string.vault_pin_mismatch)
                         } else {
                             busy = true
-                            val result = withContext(Dispatchers.IO) {
-                                if (configured) SecureFolderRepository.unlock(context, pinInput)
-                                else SecureFolderRepository.initialize(context, pinInput)
+                            onProcessing(true)
+                            try {
+                                val result = withContext(Dispatchers.IO) {
+                                    if (configured) SecureFolderRepository.unlock(context, pinInput)
+                                    else SecureFolderRepository.initialize(context, pinInput)
+                                }
+                                result.onSuccess { loaded ->
+                                    records = loaded
+                                    sessionPin = pinInput
+                                    pinInput = ""
+                                    pinConfirm = ""
+                                    configured = true
+                                    unlocked = true
+                                }.onFailure {
+                                    errorMessage = context.getString(
+                                        if (configured) R.string.vault_wrong_pin else R.string.vault_setup_error,
+                                    )
+                                }
+                            } finally {
+                                busy = false
+                                onProcessing(false)
                             }
-                            result.onSuccess { loaded ->
-                                records = loaded
-                                sessionPin = pinInput
-                                pinInput = ""
-                                pinConfirm = ""
-                                configured = true
-                                unlocked = true
-                            }.onFailure {
-                                errorMessage = context.getString(
-                                    if (configured) R.string.vault_wrong_pin else R.string.vault_setup_error,
-                                )
-                            }
-                            busy = false
                         }
                     }
                 },
@@ -340,16 +361,21 @@ internal fun SecureFolderScreen(
                         if (item != null) {
                             scope.launch {
                                 busy = true
-                                val result = withContext(Dispatchers.IO) {
-                                    SecureFolderRepository.remove(context, item, sessionPin)
+                                onProcessing(true)
+                                try {
+                                    val result = withContext(Dispatchers.IO) {
+                                        SecureFolderRepository.remove(context, item, sessionPin)
+                                    }
+                                    result.onSuccess {
+                                        records = it
+                                        onMessage(context.getString(R.string.vault_delete_success))
+                                    }.onFailure {
+                                        onMessage(context.getString(R.string.vault_operation_error))
+                                    }
+                                } finally {
+                                    busy = false
+                                    onProcessing(false)
                                 }
-                                result.onSuccess {
-                                    records = it
-                                    onMessage(context.getString(R.string.vault_delete_success))
-                                }.onFailure {
-                                    onMessage(context.getString(R.string.vault_operation_error))
-                                }
-                                busy = false
                             }
                         }
                     },

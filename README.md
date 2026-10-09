@@ -2,13 +2,14 @@
 
 FilePilot is an Android file manager with its own visual identity, built around fast file collections, practical clean-up recommendations, and everyday file sharing.
 
-## FilePilot 0.3.0 beta
+## FilePilot 0.4.0 beta
 
 This revision reorganizes the app around a **Clean · Browse · Share** bottom navigation, with a separate menu for less-frequent tools and settings.
 
 ### Browse
 - Quick category collections for Downloads, Images, Videos, Audio, Documents, APK installers, Archives, and other files.
-- Category views search recursively inside accessible folders and show matching files instead of only showing folders.
+- Category views recursively search accessible folders and list matching files only; directories are kept in the separate Storage / All files screen.
+- Images and Videos use a two-column thumbnail grid with locally generated image previews and video frames where supported; other typed collections use compact file rows.
 - Recent files, Favorites, and Safe Folder collections.
 - Search, create folders, open files, share, rename, copy, move, and send items to Trash.
 - Installed-app manager shortcut.
@@ -28,6 +29,7 @@ This revision reorganizes the app around a **Clean · Browse · Share** bottom n
 - **App manager:** search installed apps, open Android app information, and request uninstall for eligible user apps.
 - **Security review:** locally review suspicious file types and misleading double extensions.
 - **Safe Folder:** a PIN-protected vault encrypting file contents and the index locally with AES-GCM.
+- Custom adaptive launcher icon, original vector art for tutorial/empty/success states, animated transitions, and a global processing indicator for core operations.
 - Portuguese and English interface strings.
 
 ## Permissions and privacy

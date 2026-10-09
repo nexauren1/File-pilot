@@ -79,23 +79,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v0.3.0-beta.1"
+          TAG="v0.4.0-beta.1"
           APK="app/build/outputs/apk/release/app-release.apk"
-          ASSET="FilePilot-0.3.0-beta.1.apk"
+          ASSET="FilePilot-0.4.0-beta.1.apk"
           cp "$APK" "$ASSET"
           NOTES="$(cat <<'EOF'
-          FilePilot 0.3.0 Android beta — redesigned navigation and file collections.
+          FilePilot 0.4.0 Android beta — redesigned file collections, navigation, and original visual identity.
 
           New in this beta:
-          - Clean · Browse · Share bottom navigation and a global menu for tools, collections, and settings.
-          - Browse home with recent files, colorful file-category cards, Favorites, Safe Folder, storage access, and an app-manager shortcut.
-          - Images, videos, audio, documents, downloads, archives and other-file categories recursively list matching files rather than just returning nested folders.
-          - A redesigned Clean page with grouped suggestions for large files, exact duplicates, and APK installers. Duplicate review preserves one copy per exact-match group.
-          - Share screen to pick a file and open Android's native sharing sheet.
-          - The Trash, app manager, local security review, and encrypted Safe Folder remain available.
-          - Portuguese and English labels for the new navigation and cleaner UI.
+          - Category views are file collections: folders are not shown inside Images, Videos, Audio, Documents, Downloads, Archives, APKs, and other typed collections.
+          - Images and Videos use a two-column thumbnail grid. Image previews and video frames are generated locally when the Android storage provider supports them.
+          - Folder navigation is separated into Storage / All files.
+          - Refreshed home dashboard with a FilePilot brand panel, storage usage, category cards, recent files, Favorites, Safe Folder, and app-management access.
+          - Reworked full navigation sheet separates Home, Storage, Clean, Share, recents, collections, tools, and settings.
+          - Global processing bar and animated transitions for file operations, category loading, cleaner scans, and Safe Folder operations.
+          - Original FilePilot adaptive launcher icon and custom vector illustrations for access guidance, empty states, and cleaner completion.
+          - Cleaner recommendations for large files, exact duplicates, and APK installers; duplicate review preserves one copy per exact-match group.
+          - Trash, app manager, local heuristic security review, encrypted Safe Folder, and native Android sharing remain available.
+          - English and Portuguese labels for the refreshed screens.
 
-          This uses Google Files as a UX reference, with FilePilot's own name, colors, and implementation.
+          The interaction patterns use Google Files as a UX reference; FilePilot has its own name, icon artwork, colors, and code.
 
           IMPORTANT — beta/testing limitations:
           - This APK uses the Android debug signing key for sideload testing. It is NOT a production-store signing build.
@@ -107,9 +110,9 @@ jobs:
           EOF
           )"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "FilePilot 0.3.0 Beta 1" --notes "$NOTES" --prerelease
+            gh release edit "$TAG" --title "FilePilot 0.4.0 Beta 1" --notes "$NOTES" --prerelease
             gh release upload "$TAG" "$ASSET" --clobber
           else
-            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "FilePilot 0.3.0 Beta 1" --notes "$NOTES" --prerelease
+            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "FilePilot 0.4.0 Beta 1" --notes "$NOTES" --prerelease
           fi
           echo "Published release: https://github.com/nexauren1/File-pilot/releases/tag/$TAG"
