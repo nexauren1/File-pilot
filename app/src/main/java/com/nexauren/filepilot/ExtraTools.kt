@@ -378,7 +378,7 @@ object StorageAnalyzer {
             filesScanned = visitedFiles,
             truncated = truncated,
             largeFiles = large.sortedByDescending { it.sizeBytes }.take(60),
-            installers = installers.sortedByDescending { it.lastModified }.take(100),
+            installers = installers.sortedByDescending { it.modifiedAt }.take(100),
             suspiciousFiles = suspicious.distinctBy { it.location }.take(100),
             duplicateGroups = hashGroups.values.filter { it.size > 1 }.map { it.toList() }.take(40),
         )
