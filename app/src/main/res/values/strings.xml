@@ -41,9 +41,9 @@
     <string name="rename_hint">New name</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
-    <string name="delete_title">Delete this item?</string>
-    <string name="delete_message">This action may be permanent. The selected item will be removed from its location.</string>
-    <string name="confirm_delete">Delete</string>
+    <string name="delete_title">Move this item to Trash?</string>
+    <string name="delete_message">The selected item will be moved to FilePilot Trash. You can restore it or delete it permanently later.</string>
+    <string name="confirm_delete">Move to Trash</string>
     <string name="error_operation">The operation could not be completed.</string>
     <string name="rename_success">Item renamed.</string>
     <string name="delete_success">Item deleted.</string>
