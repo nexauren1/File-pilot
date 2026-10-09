@@ -64,6 +64,10 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.ViewList
+import androidx.compose.material.icons.outlined.Sort
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
@@ -208,6 +212,8 @@ private fun FilePilotApp() {
     var transferTarget by remember { mutableStateOf<FileEntry?>(null) }
     var transferAsMove by remember { mutableStateOf(false) }
     var fileInfoTarget by remember { mutableStateOf<FileEntry?>(null) }
+    var collectionLayout by rememberSaveable { mutableStateOf("AUTO") }
+    var collectionSort by rememberSaveable { mutableStateOf("DATE") }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var renameText by remember { mutableStateOf("") }
@@ -800,6 +806,11 @@ private fun FilePilotApp() {
                         entries = entries,
                         loading = loading,
                         onOpen = ::openEntry,
+                        onShowInfo = { fileInfoTarget = it },
+                        layoutMode = collectionLayout,
+                        onLayoutModeChange = { collectionLayout = it },
+                        sortMode = collectionSort,
+                        onSortModeChange = { collectionSort = it },
                         onRename = { entry -> renameTarget = entry; renameText = entry.name },
                         onDelete = { deleteTarget = it },
                         onMoveToSafeFolder = { entry ->
@@ -850,6 +861,11 @@ private fun FilePilotApp() {
                 entries = recentEntries,
                 loading = false,
                 onOpen = ::openEntry,
+                onShowInfo = { fileInfoTarget = it },
+                layoutMode = collectionLayout,
+                onLayoutModeChange = { collectionLayout = it },
+                sortMode = collectionSort,
+                onSortModeChange = { collectionSort = it },
                 onRename = { entry -> renameTarget = entry; renameText = entry.name },
                 onDelete = { deleteTarget = it },
                 onMoveToSafeFolder = { entry ->
@@ -896,6 +912,11 @@ private fun FilePilotApp() {
                 entries = favorites,
                 loading = false,
                 onOpen = ::openEntry,
+                onShowInfo = { fileInfoTarget = it },
+                layoutMode = collectionLayout,
+                onLayoutModeChange = { collectionLayout = it },
+                sortMode = collectionSort,
+                onSortModeChange = { collectionSort = it },
                 onRename = { entry -> renameTarget = entry; renameText = entry.name },
                 onDelete = { deleteTarget = it },
                 onMoveToSafeFolder = { entry ->
@@ -1574,6 +1595,11 @@ private fun FileListScreen(
     entries: List<FileEntry>,
     loading: Boolean,
     onOpen: (FileEntry) -> Unit,
+    onShowInfo: (FileEntry) -> Unit,
+    layoutMode: String,
+    onLayoutModeChange: (String) -> Unit,
+    sortMode: String,
+    onSortModeChange: (String) -> Unit,
     onRename: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
     onMoveToSafeFolder: (FileEntry) -> Unit,
@@ -1586,11 +1612,24 @@ private fun FileListScreen(
     collectionMode: Boolean = false,
     collectionCategory: FileCategory = FileCategory.ALL,
 ) {
-    // Defensive filtering is intentional: collection screens must never show folders,
-    // even if a future provider returns a directory row unexpectedly.
+    val mediaCollection = collectionMode &&
+        (collectionCategory == FileCategory.IMAGES || collectionCategory == FileCategory.VIDEOS)
+    val showGrid = layoutMode == "GRID" || (layoutMode == "AUTO" && mediaCollection)
+
+    // Category collections never include folders. Keep one in-memory list and sort it locally;
+    // changing the view or sort option does not query storage or restart a scan.
     val visibleEntries = remember(entries, collectionMode) {
         if (collectionMode) entries.filterNot { it.isDirectory } else entries
     }
+    val sortedEntries = remember(visibleEntries, sortMode) {
+        when (sortMode) {
+            "NAME" -> visibleEntries.sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenBy { it.name.lowercase(Locale.ROOT) })
+            "SIZE" -> visibleEntries.sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenByDescending { it.sizeBytes })
+            "TYPE" -> visibleEntries.sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenBy { it.category.name }.thenBy { it.name.lowercase(Locale.ROOT) })
+            else -> visibleEntries.sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenByDescending { it.modifiedAt })
+        }
+    }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
 
     if (visibleEntries.isEmpty() && !loading) {
         Column(
@@ -1617,29 +1656,68 @@ private fun FileListScreen(
         }
     } else {
         Column(modifier.fillMaxSize()) {
-            if (collectionMode) {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(
-                            stringResource(R.string.collection_files_count, visibleEntries.size),
-                            color = Ink,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium,
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        stringResource(R.string.collection_files_count, sortedEntries.size),
+                        color = Ink,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        stringResource(
+                            when (sortMode) {
+                                "NAME" -> R.string.sort_by_name
+                                "SIZE" -> R.string.sort_by_size
+                                "TYPE" -> R.string.sort_by_type
+                                else -> R.string.sort_by_date
+                            }
+                        ),
+                        color = SecondaryText,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                Box {
+                    IconButton(onClick = { sortMenuExpanded = true }) {
+                        Icon(Icons.Outlined.Sort, contentDescription = stringResource(R.string.sort_files))
+                    }
+                    DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.sort_by_name)) },
+                            onClick = { onSortModeChange("NAME"); sortMenuExpanded = false },
                         )
-                        Text(
-                            stringResource(R.string.collection_sort_recent),
-                            color = SecondaryText,
-                            style = MaterialTheme.typography.labelSmall,
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.sort_by_date)) },
+                            onClick = { onSortModeChange("DATE"); sortMenuExpanded = false },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.sort_by_size)) },
+                            onClick = { onSortModeChange("SIZE"); sortMenuExpanded = false },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.sort_by_type)) },
+                            onClick = { onSortModeChange("TYPE"); sortMenuExpanded = false },
                         )
                     }
+                }
+                IconButton(onClick = {
+                    onLayoutModeChange(if (showGrid) "LIST" else "GRID")
+                }) {
+                    Icon(
+                        if (showGrid) Icons.Outlined.ViewList else Icons.Outlined.GridView,
+                        contentDescription = stringResource(if (showGrid) R.string.list_view else R.string.grid_view),
+                    )
+                }
+                if (collectionMode) {
                     TextButton(onClick = onClearFilter) { Text(stringResource(R.string.category_all)) }
                 }
             }
 
-            if (collectionMode && (collectionCategory == FileCategory.IMAGES || collectionCategory == FileCategory.VIDEOS)) {
+            if (showGrid) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -1647,10 +1725,11 @@ private fun FileListScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    gridItems(visibleEntries, key = { it.location }) { entry ->
+                    gridItems(sortedEntries, key = { it.location }) { entry ->
                         MediaCollectionTile(
                             entry = entry,
                             onOpen = { onOpen(entry) },
+                            onShowInfo = { onShowInfo(entry) },
                             onRename = { onRename(entry) },
                             onDelete = { onDelete(entry) },
                             onMoveToSafeFolder = { onMoveToSafeFolder(entry) },
@@ -1669,17 +1748,22 @@ private fun FileListScreen(
                 ) {
                     if (loading) {
                         item {
-                            Text(
-                                stringResource(R.string.processing_files),
-                                color = SecondaryText,
-                                modifier = Modifier.padding(16.dp),
-                            )
+                            Row(
+                                Modifier.fillMaxWidth().padding(22.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                            ) {
+                                CircularProgressIndicator(color = AppBlue, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(stringResource(R.string.processing_files), color = SecondaryText)
+                            }
                         }
                     }
-                    items(visibleEntries, key = { it.location }) { entry ->
+                    items(sortedEntries, key = { it.location }) { entry ->
                         FileRow(
                             entry = entry,
                             onClick = { onOpen(entry) },
+                            onShowInfo = { onShowInfo(entry) },
                             onRename = { onRename(entry) },
                             onDelete = { onDelete(entry) },
                             onMoveToSafeFolder = { onMoveToSafeFolder(entry) },
