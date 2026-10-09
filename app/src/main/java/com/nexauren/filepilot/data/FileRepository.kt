@@ -44,19 +44,7 @@ object FileRepository {
     fun listChildren(context: Context, location: String): List<FileEntry> {
         return try {
             if (location.startsWith("content://")) {
-                val directory = documentFromUri(context, Uri.parse(location))
-                if (directory?.isDirectory != true) {
-                    emptyList()
-                } else {
-                    directory.listFiles().mapNotNull { child ->
-                        try {
-                            val name = child.name ?: return@mapNotNull null
-                            FileEntry(child.uri.toString(), name, child.isDirectory, child.length().coerceAtLeast(0L), child.lastModified(), child.type ?: mimeFromName(name))
-                        } catch (_: Exception) {
-                            null
-                        }
-                    }.sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenBy { it.name.lowercase() })
-                }
+                listSafChildren(context, Uri.parse(location))
             } else {
                 val directory = File(location)
                 if (!directory.isDirectory || !directory.canRead()) {
@@ -99,9 +87,68 @@ object FileRepository {
         if (entry.location.startsWith("content://")) Uri.parse(entry.location)
         else FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", File(entry.location))
 
-    private fun documentFromUri(context: Context, uri: Uri): DocumentFile? =
-        if (DocumentsContract.isTreeUri(uri)) DocumentFile.fromTreeUri(context, uri)
-        else DocumentFile.fromSingleUri(context, uri)
+    private fun documentFromUri(context: Context, uri: Uri): DocumentFile? {
+        val isChildDocument = uri.pathSegments.contains("document")
+        return if (DocumentsContract.isTreeUri(uri) && !isChildDocument) {
+            DocumentFile.fromTreeUri(context, uri)
+        } else {
+            DocumentFile.fromSingleUri(context, uri)
+        }
+    }
+
+    private fun listSafChildren(context: Context, directoryUri: Uri): List<FileEntry> {
+        val pathSegments = directoryUri.pathSegments
+        val documentId = if (pathSegments.contains("document")) {
+            DocumentsContract.getDocumentId(directoryUri)
+        } else {
+            DocumentsContract.getTreeDocumentId(directoryUri)
+        }
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+        )
+        val result = mutableListOf<FileEntry>()
+        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val sizeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            val modifiedColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+            while (cursor.moveToNext()) {
+                try {
+                    if (idColumn < 0 || nameColumn < 0) continue
+                    val documentIdValue = cursor.getString(idColumn) ?: continue
+                    val name = cursor.getString(nameColumn) ?: continue
+                    val mime = if (mimeColumn >= 0 && !cursor.isNull(mimeColumn)) cursor.getString(mimeColumn) else null
+                    val isDirectory = mime == DocumentsContract.Document.MIME_TYPE_DIR
+                    val size = if (!isDirectory && sizeColumn >= 0 && !cursor.isNull(sizeColumn)) {
+                        cursor.getLong(sizeColumn).coerceAtLeast(0L)
+                    } else 0L
+                    val modified = if (modifiedColumn >= 0 && !cursor.isNull(modifiedColumn)) {
+                        cursor.getLong(modifiedColumn)
+                    } else 0L
+                    val childUri = DocumentsContract.buildDocumentUriUsingTree(directoryUri, documentIdValue)
+                    result.add(
+                        FileEntry(
+                            childUri.toString(),
+                            name,
+                            isDirectory,
+                            size,
+                            modified,
+                            if (isDirectory) null else mime ?: mimeFromName(name),
+                        ),
+                    )
+                } catch (_: Exception) {
+                    // Ignore a single provider row that is malformed or no longer accessible.
+                }
+            }
+        }
+        return result.sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenBy { it.name.lowercase() })
+    }
 
     fun createDirectory(context: Context, location: String, name: String): Result<Unit> = runCatching {
         require(name.isNotBlank() && name == name.trim()) { "Invalid folder name." }
