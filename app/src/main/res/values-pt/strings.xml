@@ -24,6 +24,11 @@
     <string name="search_hint">Pesquisar nesta pasta</string>
     <string name="empty_title">Não há ficheiros aqui</string>
     <string name="empty_message">Experimenta outra pasta ou limpa a pesquisa e o filtro.</string>
+    <string name="empty_collection_title">Ainda não há ficheiros deste tipo</string>
+    <string name="empty_collection_message">Os ficheiros desta categoria aparecerão aqui. Verifica o acesso ao armazenamento ou escolhe outra pasta.</string>
+    <string name="collection_files_count">%1$d ficheiros</string>
+    <string name="collection_sort_recent">Ordenado por data de modificação</string>
+    <string name="processing_files">A carregar ficheiros…</string>
     <string name="permission_missing">Escolhe uma pasta ou concede acesso para começar.</string>
     <string name="settings_title">Definições</string>
     <string name="settings_access">Acesso a ficheiros</string>
