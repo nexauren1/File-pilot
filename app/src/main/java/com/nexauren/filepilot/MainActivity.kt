@@ -28,7 +28,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -47,6 +49,9 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -111,10 +116,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // FilePilot keeps the familiar, straightforward file-manager layout with its own violet identity.
-private val AppBlue = Color(0xFF6D4AE8)
-private val PageBackground = Color(0xFFF8F7FC)
-private val SecondaryText = Color(0xFF6B6680)
-private val SoftBlue = Color(0xFFEFEAFF)
+private val AppBlue = Color(0xFF5A45D6)
+private val PageBackground = Color(0xFFF5F5FA)
+private val SecondaryText = Color(0xFF656579)
+private val SoftBlue = Color(0xFFEAE7FF)
+private val Ink = Color(0xFF202033)
+private val Teal = Color(0xFF087F8C)
+private val Green = Color(0xFF26845A)
+private val Coral = Color(0xFFBA4B58)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,7 +145,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppTab { HOME, BROWSE, RECENTS, FAVORITES, SAFE, TOOLS, TRASH, CLEANER, APPS, SECURITY, SETTINGS }
+private enum class AppTab { HOME, BROWSE, CLEAN, SHARE, RECENTS, FAVORITES, SAFE, TOOLS, TRASH, CLEANER, APPS, SECURITY, SETTINGS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,6 +157,7 @@ private fun FilePilotApp() {
     var filterName by rememberSaveable { mutableStateOf(FileCategory.ALL.name) }
     var query by rememberSaveable { mutableStateOf("") }
     var showSearch by rememberSaveable { mutableStateOf(false) }
+    var mainMenuExpanded by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
     var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var favorites by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
@@ -271,6 +281,21 @@ private fun FilePilotApp() {
     }
 
 
+    val shareFilePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val mime = context.contentResolver.getType(uri) ?: "*/*"
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            runCatching { context.startActivity(Intent.createChooser(intent, context.getString(R.string.action_share))) }
+                .onFailure { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) } }
+        }
+    }
+
     val trashRestorePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
@@ -319,23 +344,36 @@ private fun FilePilotApp() {
     LaunchedEffect(tabName, reload) {
         when (tab) {
             AppTab.FAVORITES -> favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
-            AppTab.RECENTS -> recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
+            AppTab.RECENTS, AppTab.HOME, AppTab.SHARE -> recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
             AppTab.TRASH -> trashEntries = withContext(Dispatchers.IO) { TrashRepository.list(context) }
             else -> Unit
         }
     }
 
-    LaunchedEffect(currentLocation, filterName, query, reload, tabName) {
-        if (currentLocation != null && tab == AppTab.BROWSE) {
-            loading = true
-            val loaded = withContext(Dispatchers.IO) {
-                FileRepository.listChildren(context, currentLocation)
+    LaunchedEffect(rootLocation, currentLocation, filterName, query, reload, tabName) {
+        if (tab == AppTab.BROWSE) {
+            val collectionMode = filter != FileCategory.ALL
+            val listRoot = if (collectionMode) rootLocation else currentLocation
+            if (listRoot != null) {
+                loading = true
+                val loaded = withContext(Dispatchers.IO) {
+                    if (collectionMode) FileRepository.listFilesRecursively(context, listRoot)
+                    else FileRepository.listChildren(context, listRoot)
+                }
+                val filtered = loaded.filter { entry ->
+                    val typeMatches = if (collectionMode) {
+                        !entry.isDirectory && filter.matches(entry.name, false, entry.location)
+                    } else {
+                        filter.matches(entry.name, entry.isDirectory, entry.location)
+                    }
+                    typeMatches && entry.name.contains(query.trim(), ignoreCase = true)
+                }
+                entries = if (collectionMode) filtered.sortedByDescending { it.modifiedAt } else filtered
+                loading = false
+            } else {
+                entries = emptyList()
+                loading = false
             }
-            entries = loaded.filter { entry ->
-                filter.matches(entry.name, entry.isDirectory, entry.location) &&
-                    entry.name.contains(query.trim(), ignoreCase = true)
-            }
-            loading = false
         }
     }
 
@@ -382,7 +420,7 @@ private fun FilePilotApp() {
         }
     }
 
-    BackHandler(enabled = tab == AppTab.RECENTS || tab == AppTab.FAVORITES) {
+    BackHandler(enabled = tab == AppTab.RECENTS || tab == AppTab.FAVORITES || tab == AppTab.CLEAN || tab == AppTab.SHARE) {
         tabName = AppTab.HOME.name
     }
 
@@ -410,7 +448,7 @@ private fun FilePilotApp() {
         topBar = {
             TopAppBar(
                 title = {
-                    if (showSearch && tab == AppTab.BROWSE) {
+                    if (showSearch && (tab == AppTab.BROWSE || tab == AppTab.HOME || tab == AppTab.SHARE)) {
                         OutlinedTextField(
                             value = query,
                             onValueChange = { query = it },
@@ -423,9 +461,12 @@ private fun FilePilotApp() {
                         Column {
                             Text(
                                 when (tab) {
-                                    AppTab.HOME -> stringResource(R.string.app_name)
-                                    AppTab.BROWSE -> currentLocation?.let { displayLocationName(context, it) }
-                                        ?: stringResource(R.string.browse_title)
+                                    AppTab.HOME -> stringResource(R.string.tab_browse)
+                                    AppTab.BROWSE -> if (filter == FileCategory.ALL) {
+                                        currentLocation?.let { displayLocationName(context, it) } ?: stringResource(R.string.browse_title)
+                                    } else categoryLabel(filter)
+                                    AppTab.CLEAN, AppTab.CLEANER -> stringResource(R.string.tab_clean)
+                                    AppTab.SHARE -> stringResource(R.string.tab_share)
                                     AppTab.RECENTS -> stringResource(R.string.recents_title)
                                     AppTab.FAVORITES -> stringResource(R.string.favorites_title)
                                     AppTab.SAFE -> stringResource(R.string.vault_title)
@@ -463,13 +504,15 @@ private fun FilePilotApp() {
                     }
                 },
                 actions = {
-                    if (tab == AppTab.BROWSE) {
+                    if (tab == AppTab.HOME || tab == AppTab.BROWSE || tab == AppTab.SHARE) {
                         IconButton(onClick = {
                             showSearch = !showSearch
                             if (!showSearch) query = ""
                         }) {
                             Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.search_hint))
                         }
+                    }
+                    if (tab == AppTab.BROWSE && filter == FileCategory.ALL) {
                         IconButton(onClick = {
                             newFolderName = ""
                             showCreateFolderDialog = true
@@ -477,31 +520,42 @@ private fun FilePilotApp() {
                             Icon(Icons.Outlined.CreateNewFolder, contentDescription = stringResource(R.string.new_folder))
                         }
                     }
+                    IconButton(onClick = { mainMenuExpanded = true }) {
+                        Icon(Icons.Outlined.Menu, contentDescription = stringResource(R.string.menu_title))
+                    }
+                    DropdownMenu(expanded = mainMenuExpanded, onDismissRequest = { mainMenuExpanded = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.tab_browse)) }, onClick = { mainMenuExpanded = false; tabName = AppTab.HOME.name; filterName = FileCategory.ALL.name; query = "" })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.recents_title)) }, onClick = { mainMenuExpanded = false; tabName = AppTab.RECENTS.name })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.favorites_title)) }, onClick = { mainMenuExpanded = false; tabName = AppTab.FAVORITES.name })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.vault_title)) }, onClick = { mainMenuExpanded = false; vaultPendingMove = null; tabName = AppTab.SAFE.name })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.toolbox_title)) }, onClick = { mainMenuExpanded = false; tabName = AppTab.TOOLS.name })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.trash_title)) }, onClick = { mainMenuExpanded = false; tabName = AppTab.TRASH.name })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.apps_title)) }, onClick = { mainMenuExpanded = false; tabName = AppTab.APPS.name })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.security_title)) }, onClick = { mainMenuExpanded = false; tabName = AppTab.SECURITY.name })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.settings_title)) }, onClick = { mainMenuExpanded = false; tabName = AppTab.SETTINGS.name })
+                    }
                 },
             )
         },
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 NavigationBarItem(
-                    selected = tab == AppTab.HOME || tab == AppTab.RECENTS || tab == AppTab.FAVORITES || tab == AppTab.TOOLS || tab == AppTab.TRASH || tab == AppTab.CLEANER || tab == AppTab.APPS || tab == AppTab.SECURITY,
-                    onClick = { tabName = AppTab.HOME.name },
-                    icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_home)) },
+                    selected = tab == AppTab.CLEAN || tab == AppTab.CLEANER,
+                    onClick = { tabName = AppTab.CLEAN.name },
+                    icon = { Icon(Icons.Outlined.CleaningServices, contentDescription = null) },
+                    label = { Text(stringResource(R.string.tab_clean)) },
                 )
                 NavigationBarItem(
-                    selected = tab == AppTab.BROWSE,
-                    onClick = {
-                        tabName = AppTab.BROWSE.name
-                        filterName = FileCategory.ALL.name
-                    },
+                    selected = tab == AppTab.HOME || tab == AppTab.BROWSE || tab == AppTab.RECENTS || tab == AppTab.FAVORITES || tab == AppTab.SAFE || tab == AppTab.TOOLS || tab == AppTab.TRASH || tab == AppTab.APPS || tab == AppTab.SECURITY || tab == AppTab.SETTINGS,
+                    onClick = { tabName = AppTab.HOME.name; filterName = FileCategory.ALL.name; query = "" },
                     icon = { Icon(Icons.Outlined.Folder, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_browse)) },
                 )
                 NavigationBarItem(
-                    selected = tab == AppTab.SETTINGS,
-                    onClick = { tabName = AppTab.SETTINGS.name },
-                    icon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_settings)) },
+                    selected = tab == AppTab.SHARE,
+                    onClick = { tabName = AppTab.SHARE.name },
+                    icon = { Icon(Icons.Outlined.Share, contentDescription = null) },
+                    label = { Text(stringResource(R.string.tab_share)) },
                 )
             }
         },
@@ -516,14 +570,39 @@ private fun FilePilotApp() {
                 onOpenRecents = { tabName = AppTab.RECENTS.name },
                 onOpenFavorites = { tabName = AppTab.FAVORITES.name },
                 onOpenSafeFolder = { vaultPendingMove = null; tabName = AppTab.SAFE.name },
-                onOpenTools = { tabName = AppTab.TOOLS.name },
+                recentFiles = recentEntries,
+                onOpenRecentEntry = ::openEntry,
                 onCategory = { category ->
                     filterName = category.name
                     query = ""
+                    stack.clear()
+                    rootLocation?.let { stack.add(it) }
                     tabName = AppTab.BROWSE.name
                 },
                 onRequestAccess = ::requestStorageAccess,
                 onChooseFolder = { folderPicker.launch(null) },
+            )
+            AppTab.CLEAN, AppTab.CLEANER -> CleanerScreen(
+                modifier = Modifier.padding(padding),
+                rootLocation = rootLocation,
+                onRequestAccess = ::requestStorageAccess,
+                onMoveToTrash = ::moveToTrash,
+            )
+            AppTab.SHARE -> ShareScreen(
+                modifier = Modifier.padding(padding),
+                recentFiles = recentEntries,
+                onShare = { entry ->
+                    runCatching {
+                        val uri = FileRepository.shareUri(context, entry)
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = entry.mimeType ?: "*/*"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(intent, entry.name))
+                    }.onFailure { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) } }
+                },
+                onPickFile = { shareFilePicker.launch(arrayOf("*/*")) },
             )
             AppTab.TOOLS -> ToolsScreen(
                 modifier = Modifier.padding(padding),
@@ -821,133 +900,171 @@ private fun HomeScreen(
     onOpenRecents: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSafeFolder: () -> Unit,
-    onOpenTools: () -> Unit,
+    recentFiles: List<FileEntry>,
+    onOpenRecentEntry: (FileEntry) -> Unit,
     onCategory: (FileCategory) -> Unit,
     onRequestAccess: () -> Unit,
     onChooseFolder: () -> Unit,
 ) {
     Column(
-        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Spacer(Modifier.height(4.dp))
-        Text(stringResource(R.string.home_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.home_subtitle), color = SecondaryText)
         StorageCard(hasAccess = hasAccess, hasLocation = hasLocation)
         if (!hasLocation) PermissionCard(onRequestAccess, onChooseFolder)
-        Card(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenRecents),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.History, contentDescription = null, tint = AppBlue)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.recents_title), fontWeight = FontWeight.SemiBold)
-                    Text(stringResource(R.string.recents_subtitle), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
+
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
             TextButton(onClick = onOpenFiles) { Text(stringResource(R.string.category_all)) }
         }
         val categories = listOf(
-            FileCategory.IMAGES, FileCategory.VIDEOS,
-            FileCategory.AUDIO, FileCategory.DOCUMENTS,
-            FileCategory.ARCHIVES, FileCategory.APKS,
-            FileCategory.DOWNLOADS, FileCategory.OTHER,
+            FileCategory.DOWNLOADS, FileCategory.IMAGES,
+            FileCategory.VIDEOS, FileCategory.AUDIO,
+            FileCategory.DOCUMENTS, FileCategory.APKS,
+            FileCategory.ARCHIVES, FileCategory.OTHER,
         )
         categories.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEach { category ->
-                    CategoryCard(category, Modifier.weight(1f)) { onCategory(category) }
+                pair.forEach { category -> CategoryCard(category, Modifier.weight(1f)) { onCategory(category) } }
+            }
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.recent_files_section), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
+            TextButton(onClick = onOpenRecents) { Text(stringResource(R.string.see_all)) }
+        }
+        if (recentFiles.isEmpty()) {
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFE3F4F4)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.History, contentDescription = null, tint = Teal)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(stringResource(R.string.recents_title), fontWeight = FontWeight.SemiBold, color = Ink)
+                        Text(stringResource(R.string.recents_subtitle), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                recentFiles.take(6).forEachIndexed { index, entry ->
+                    Card(
+                        modifier = Modifier.width(164.dp).clickable { onOpenRecentEntry(entry) },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = when (index % 3) { 0 -> Color(0xFFE8E5FF); 1 -> Color(0xFFE0F3F0); else -> Color(0xFFFFECE6) }),
+                    ) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                                Icon(if (entry.isDirectory) Icons.Outlined.Folder else categoryIcon(entry.category), contentDescription = null, tint = when (index % 3) { 0 -> AppBlue; 1 -> Teal; else -> Coral })
+                            }
+                            Text(entry.name, fontWeight = FontWeight.SemiBold, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis, color = Ink)
+                            Text(formatBytes(entry.sizeBytes), color = SecondaryText, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 }
             }
         }
-        Card(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenFavorites),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF1EFF7)),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFE2DCF6)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Star, contentDescription = null, tint = Color(0xFF6650A4))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.favorites_title), fontWeight = FontWeight.SemiBold)
-                    Text(stringResource(R.string.favorites_subtitle), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-        Card(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenSafeFolder),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFECE7FF)),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFDCD3FF)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Lock, contentDescription = null, tint = Color(0xFF6650A4))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.vault_title), fontWeight = FontWeight.SemiBold)
-                    Text(stringResource(R.string.vault_home_subtitle), color = Color(0xFF655A80), style = MaterialTheme.typography.bodySmall)
-                }
-            }
+
+        Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CollectionCard(
+                title = stringResource(R.string.favorites_title),
+                subtitle = stringResource(R.string.favorites_subtitle),
+                icon = Icons.Outlined.Star,
+                tint = Color(0xFFFFF0D9),
+                accent = Color(0xFF986100),
+                modifier = Modifier.weight(1f),
+                onClick = onOpenFavorites,
+            )
+            CollectionCard(
+                title = stringResource(R.string.vault_title),
+                subtitle = stringResource(R.string.vault_home_subtitle),
+                icon = Icons.Outlined.Lock,
+                tint = Color(0xFFE7E3FF),
+                accent = AppBlue,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenSafeFolder,
+            )
         }
         Card(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenFiles),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
         ) {
-            Row(
-                Modifier.fillMaxWidth().padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Folder, contentDescription = null, tint = AppBlue)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.browse_title), fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (hasLocation) stringResource(R.string.access_enabled) else stringResource(R.string.storage_unavailable),
-                        color = SecondaryText,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        }
-        Card(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenTools),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-        ) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Apps, contentDescription = null, tint = AppBlue)
+                Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFE1F2F1)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Storage, contentDescription = null, tint = Teal)
                 }
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.toolbox_title), fontWeight = FontWeight.SemiBold)
-                    Text(stringResource(R.string.toolbox_subtitle), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.storage_devices), fontWeight = FontWeight.SemiBold, color = Ink)
+                    Text(if (hasLocation) stringResource(R.string.access_enabled) else stringResource(R.string.storage_unavailable), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
                 }
+                Icon(Icons.Outlined.ArrowBack, contentDescription = null, tint = SecondaryText, modifier = Modifier.size(18.dp))
             }
         }
         Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun CollectionCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    tint: Color,
+    accent: Color,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Card(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = tint)) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.85f)), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = accent)
+            }
+            Text(title, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, color = SecondaryText, style = MaterialTheme.typography.bodySmall, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun ShareScreen(
+    modifier: Modifier,
+    recentFiles: List<FileEntry>,
+    onShare: (FileEntry) -> Unit,
+    onPickFile: () -> Unit,
+) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE4E0FF))) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(52.dp).clip(RoundedCornerShape(17.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Share, contentDescription = null, tint = AppBlue, modifier = Modifier.size(28.dp))
+                }
+                Text(stringResource(R.string.share_screen_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
+                Text(stringResource(R.string.share_screen_body), color = SecondaryText)
+                Button(onClick = onPickFile, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.share_pick_action)) }
+            }
+        }
+        Text(stringResource(R.string.share_recent_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        if (recentFiles.isEmpty()) {
+            Text(stringResource(R.string.share_empty), color = SecondaryText)
+        } else {
+            recentFiles.take(12).forEach { entry ->
+                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
+                            Icon(categoryIcon(entry.category), contentDescription = null, tint = AppBlue)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(entry.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Ink)
+                            Text(formatBytes(entry.sizeBytes), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = { onShare(entry) }) { Text(stringResource(R.string.action_share)) }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1033,16 +1150,36 @@ private fun PermissionScreen(modifier: Modifier, onRequestAccess: () -> Unit, on
 
 @Composable
 private fun CategoryCard(category: FileCategory, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val tint = when (category) {
+        FileCategory.DOWNLOADS -> Color(0xFFE4F4E8)
+        FileCategory.IMAGES -> Color(0xFFFFE7E9)
+        FileCategory.VIDEOS -> Color(0xFFDFF3F1)
+        FileCategory.AUDIO -> Color(0xFFF1E5FF)
+        FileCategory.DOCUMENTS -> Color(0xFFE4ECFF)
+        FileCategory.APKS -> Color(0xFFFFEBD9)
+        FileCategory.ARCHIVES -> Color(0xFFE7E7F0)
+        else -> Color(0xFFE4F0F8)
+    }
+    val accent = when (category) {
+        FileCategory.DOWNLOADS -> Green
+        FileCategory.IMAGES -> Coral
+        FileCategory.VIDEOS -> Teal
+        FileCategory.AUDIO -> Color(0xFF7B43B5)
+        FileCategory.DOCUMENTS -> Color(0xFF315FB8)
+        FileCategory.APKS -> Color(0xFFB45C18)
+        FileCategory.ARCHIVES -> Color(0xFF55556F)
+        else -> Color(0xFF34708C)
+    }
     Card(
-        modifier = modifier.height(112.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        modifier = modifier.height(104.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = tint),
     ) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
-                Icon(categoryIcon(category), contentDescription = null, tint = AppBlue)
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
+                Icon(categoryIcon(category), contentDescription = null, tint = accent)
             }
-            Text(categoryLabel(category), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(categoryLabel(category), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Ink)
         }
     }
 }
