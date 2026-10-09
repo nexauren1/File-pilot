@@ -632,7 +632,11 @@ private fun FilePilotApp() {
                     }
                 },
                 navigationIcon = {
-                    if (tab == AppTab.VIEWER || tab == AppTab.SAFE || (tab == AppTab.BROWSE && stack.size > 1)) {
+                    if (tab == AppTab.HOME || tab == AppTab.SHARE || (tab == AppTab.BROWSE && stack.size <= 1)) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Outlined.Menu, contentDescription = stringResource(R.string.menu_title))
+                        }
+                    } else if (tab == AppTab.VIEWER || tab == AppTab.SAFE || (tab == AppTab.BROWSE && stack.size > 1)) {
                         IconButton(onClick = {
                             when (tab) {
                                 AppTab.VIEWER -> {
@@ -676,9 +680,7 @@ private fun FilePilotApp() {
                             Icon(Icons.Outlined.CreateNewFolder, contentDescription = stringResource(R.string.new_folder))
                         }
                     }
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        Icon(Icons.Outlined.Menu, contentDescription = stringResource(R.string.menu_title))
-                    }
+
 
                 },
                 )
