@@ -1260,6 +1260,10 @@ private fun PermissionCard(onRequestAccess: () -> Unit, onChooseFolder: () -> Un
         colors = CardDefaults.cardColors(containerColor = Color.White),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FilePilotIllustration(
+                category = FileCategory.ALL,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 2.dp),
+            )
             Text(stringResource(R.string.access_title), fontWeight = FontWeight.Bold)
             Text(stringResource(R.string.access_body), color = SecondaryText)
             Button(onClick = onRequestAccess, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.access_full)) }
