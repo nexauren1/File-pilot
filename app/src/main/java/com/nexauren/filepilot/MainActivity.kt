@@ -683,7 +683,6 @@ private fun FilePilotApp() {
                 onOpenRecents = { tabName = AppTab.RECENTS.name },
                 onOpenFavorites = { tabName = AppTab.FAVORITES.name },
                 onOpenSafeFolder = { vaultPendingMove = null; tabName = AppTab.SAFE.name },
-                onOpenApps = { tabName = AppTab.APPS.name },
                 recentFiles = recentEntries,
                 onOpenRecentEntry = ::openEntry,
                 onCategory = { category ->
@@ -1172,17 +1171,62 @@ private fun HomeScreen(
     modifier: Modifier,
     hasAccess: Boolean,
     hasLocation: Boolean,
+    rootLocation: String?,
+    reloadToken: Int,
     onOpenFiles: () -> Unit,
     onOpenRecents: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSafeFolder: () -> Unit,
-    onOpenApps: () -> Unit,
     recentFiles: List<FileEntry>,
     onOpenRecentEntry: (FileEntry) -> Unit,
     onCategory: (FileCategory) -> Unit,
     onRequestAccess: () -> Unit,
     onChooseFolder: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val categorySummaries by produceState<Map<FileCategory, CategorySummary>>(
+        initialValue = emptyMap(),
+        key1 = rootLocation,
+        key2 = reloadToken,
+    ) {
+        if (rootLocation == null) {
+            value = emptyMap()
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            val files = FileRepository.listFilesRecursively(
+                context = context,
+                rootLocation = rootLocation,
+                maxFiles = 7000,
+                maxDepth = 10,
+            )
+            val summaries = mutableMapOf<FileCategory, CategorySummary>()
+            val fileCategories = listOf(
+                FileCategory.DOWNLOADS, FileCategory.IMAGES, FileCategory.VIDEOS,
+                FileCategory.AUDIO, FileCategory.DOCUMENTS, FileCategory.ARCHIVES, FileCategory.OTHER,
+            )
+            fileCategories.forEach { category ->
+                val matching = files.filter { entry ->
+                    !entry.isDirectory && category.matches(entry.name, false, entry.location)
+                }
+                summaries[category] = CategorySummary(
+                    count = matching.size,
+                    bytes = matching.sumOf { it.sizeBytes.coerceAtLeast(0L) },
+                )
+            }
+            val installedApps = runCatching {
+                @Suppress("DEPRECATION")
+                context.packageManager.getInstalledApplications(0)
+            }.getOrDefault(emptyList<ApplicationInfo>())
+            val installedApkBytes = installedApps.sumOf { app ->
+                (listOfNotNull(app.sourceDir) + app.splitSourceDirs.orEmpty())
+                    .distinct()
+                    .sumOf { path -> File(path).length().coerceAtLeast(0L) }
+            }
+            summaries[FileCategory.APPS] = CategorySummary(installedApps.size, installedApkBytes)
+            summaries
+        }
+    }
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -1199,23 +1243,53 @@ private fun HomeScreen(
         val categories = listOf(
             FileCategory.DOWNLOADS, FileCategory.IMAGES,
             FileCategory.VIDEOS, FileCategory.AUDIO,
-            FileCategory.DOCUMENTS, FileCategory.APKS,
+            FileCategory.DOCUMENTS, FileCategory.APPS,
             FileCategory.ARCHIVES, FileCategory.OTHER,
         )
         categories.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEach { category -> CategoryCard(category, Modifier.weight(1f)) { onCategory(category) } }
+                pair.forEach { category ->
+                    val summary = categorySummaries[category]
+                    val summaryText = when {
+                        !hasLocation -> stringResource(R.string.category_summary_no_access)
+                        summary == null -> stringResource(R.string.category_summary_scanning)
+                        category == FileCategory.APPS -> stringResource(
+                            R.string.category_summary_apps,
+                            summary.count,
+                            formatBytes(summary.bytes),
+                        )
+                        else -> stringResource(
+                            R.string.category_summary_files,
+                            summary.count,
+                            formatBytes(summary.bytes),
+                        )
+                    }
+                    CategoryCard(category, summaryText, Modifier.weight(1f)) { onCategory(category) }
+                }
             }
         }
-        CollectionCard(
-            title = stringResource(R.string.apps_title),
-            subtitle = stringResource(R.string.apps_description),
-            icon = Icons.Outlined.Apps,
-            tint = Color(0xFFE4ECFF),
-            accent = Color(0xFF315FB8),
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onOpenApps,
-        )
+
+        Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CollectionCard(
+                title = stringResource(R.string.favorites_title),
+                subtitle = stringResource(R.string.favorites_subtitle),
+                icon = Icons.Outlined.Star,
+                tint = Color(0xFFFFF0D9),
+                accent = Color(0xFF986100),
+                modifier = Modifier.weight(1f),
+                onClick = onOpenFavorites,
+            )
+            CollectionCard(
+                title = stringResource(R.string.vault_title),
+                subtitle = stringResource(R.string.vault_home_subtitle),
+                icon = Icons.Outlined.Lock,
+                tint = Color(0xFFE7E3FF),
+                accent = AppBlue,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenSafeFolder,
+            )
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.recent_files_section), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
@@ -1253,27 +1327,6 @@ private fun HomeScreen(
             }
         }
 
-        Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CollectionCard(
-                title = stringResource(R.string.favorites_title),
-                subtitle = stringResource(R.string.favorites_subtitle),
-                icon = Icons.Outlined.Star,
-                tint = Color(0xFFFFF0D9),
-                accent = Color(0xFF986100),
-                modifier = Modifier.weight(1f),
-                onClick = onOpenFavorites,
-            )
-            CollectionCard(
-                title = stringResource(R.string.vault_title),
-                subtitle = stringResource(R.string.vault_home_subtitle),
-                icon = Icons.Outlined.Lock,
-                tint = Color(0xFFE7E3FF),
-                accent = AppBlue,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenSafeFolder,
-            )
-        }
         Card(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenFiles),
             shape = RoundedCornerShape(20.dp),
@@ -1440,7 +1493,12 @@ private fun PermissionScreen(modifier: Modifier, onRequestAccess: () -> Unit, on
 }
 
 @Composable
-private fun CategoryCard(category: FileCategory, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun CategoryCard(
+    category: FileCategory,
+    summaryText: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
     val tint = when (category) {
         FileCategory.DOWNLOADS -> Color(0xFFE4F4E8)
         FileCategory.IMAGES -> Color(0xFFFFE7E9)
@@ -1462,22 +1520,29 @@ private fun CategoryCard(category: FileCategory, modifier: Modifier = Modifier, 
         else -> Color(0xFF34708C)
     }
     Card(
-        modifier = modifier.height(104.dp).animateContentSize().clickable(onClick = onClick),
+        modifier = modifier.height(118.dp).animateContentSize().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Column(Modifier.fillMaxSize().padding(13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(tint),
+                Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(tint),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(categoryIcon(category), contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
+                Icon(categoryIcon(category), contentDescription = null, tint = accent, modifier = Modifier.size(21.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(categoryLabel(category), modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = SecondaryText, modifier = Modifier.size(17.dp))
             }
+            Text(
+                summaryText,
+                color = SecondaryText,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -1938,7 +2003,8 @@ private fun categoryIcon(category: FileCategory): ImageVector = when (category) 
     FileCategory.AUDIO -> Icons.Outlined.MusicNote
     FileCategory.DOCUMENTS -> Icons.Outlined.Description
     FileCategory.ARCHIVES -> Icons.Outlined.Archive
-    FileCategory.APKS -> Icons.Outlined.Apps
+    FileCategory.APKS -> Icons.Outlined.Archive
+    FileCategory.APPS -> Icons.Outlined.Apps
     FileCategory.DOWNLOADS -> Icons.Outlined.Download
     FileCategory.OTHER -> Icons.Outlined.Folder
 }
@@ -1952,6 +2018,7 @@ private fun categoryLabel(category: FileCategory): String = when (category) {
     FileCategory.DOCUMENTS -> stringResource(R.string.category_documents)
     FileCategory.ARCHIVES -> stringResource(R.string.category_archives)
     FileCategory.APKS -> stringResource(R.string.category_apks)
+    FileCategory.APPS -> stringResource(R.string.category_apps)
     FileCategory.DOWNLOADS -> stringResource(R.string.category_downloads)
     FileCategory.OTHER -> stringResource(R.string.category_other)
 }
