@@ -30,7 +30,7 @@
     <string name="settings_full_access">Acesso para gerir todos os ficheiros</string>
     <string name="settings_folder">Escolher ou mudar de pasta</string>
     <string name="settings_about">Sobre o FilePilot</string>
-    <string name="settings_version">Versão 0.1.0 · Desenvolvimento inicial</string>
+    <string name="settings_version">Versão 0.3.0 · Beta para testes</string>
     <string name="tab_home">Início</string>
     <string name="tab_browse">Ficheiros</string>
     <string name="tab_settings">Definições</string>
@@ -167,5 +167,19 @@
     <string name="apps_uninstall">Desinstalar</string>
     <string name="apps_system_label">Aplicação do sistema</string>
     <string name="apps_protected_label">Protegida</string>
+
+
+    <string name="menu_title">Menu</string>
+    <string name="tab_clean">Limpar</string>
+    <string name="tab_share">Partilhar</string>
+    <string name="recent_files_section">Ficheiros recentes</string>
+    <string name="see_all">Ver todos</string>
+    <string name="collection_title">Coleções</string>
+    <string name="storage_devices">Armazenamento</string>
+    <string name="share_screen_title">Partilhar ficheiros</string>
+    <string name="share_screen_body">Escolhe um ficheiro e partilha-o com dispositivos próximos ou com uma aplicação compatível. O Android apresenta as opções de partilha disponíveis.</string>
+    <string name="share_pick_action">Escolher ficheiro para partilhar</string>
+    <string name="share_recent_title">Partilhar um ficheiro recente</string>
+    <string name="share_empty">Os ficheiros abertos aparecerão aqui para serem partilhados rapidamente.</string>
 
 </resources>
