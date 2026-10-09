@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -93,6 +94,86 @@ object FileRepository {
             }
         }
         return files.sortedWith(compareBy<FileEntry> { it.name.lowercase() }.thenBy { it.location })
+    }
+
+
+    /**
+     * Fast metadata index for category collections and the home dashboard.
+     * Android maintains a shared-file index; using it avoids walking nested folders each time
+     * the user switches between categories. Custom SAF trees use the provider-based fallback.
+     */
+    fun listIndexedFiles(
+        context: Context,
+        rootLocation: String,
+        maxFiles: Int = 12000,
+        maxDepth: Int = 8,
+    ): List<FileEntry> {
+        if (rootLocation.startsWith("content://")) {
+            return listFilesRecursively(context, rootLocation, maxFiles, maxDepth)
+        }
+
+        val root = runCatching { File(rootLocation).canonicalPath.trimEnd('/') }.getOrNull()
+            ?: return listFilesRecursively(context, rootLocation, maxFiles, maxDepth)
+        val rootPrefix = root + "/"
+        val projection = arrayOf(
+            MediaStore.Files.FileColumns.DATA,
+            MediaStore.Files.FileColumns.DISPLAY_NAME,
+            MediaStore.Files.FileColumns.SIZE,
+            MediaStore.Files.FileColumns.DATE_MODIFIED,
+            MediaStore.Files.FileColumns.MIME_TYPE,
+        )
+        val indexed = runCatching {
+            val cursor = context.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                projection,
+                null,
+                null,
+                null,
+            ) ?: error("The shared-file index is unavailable.")
+            cursor.use { rows ->
+                val dataColumn = rows.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+                val nameColumn = rows.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val sizeColumn = rows.getColumnIndex(MediaStore.Files.FileColumns.SIZE)
+                val modifiedColumn = rows.getColumnIndex(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                val mimeColumn = rows.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
+                check(dataColumn >= 0 && nameColumn >= 0) { "File metadata columns are unavailable." }
+                val result = ArrayList<FileEntry>(minOf(maxFiles, 2048))
+                while (rows.moveToNext() && result.size < maxFiles) {
+                    val rawPath = rows.getString(dataColumn)?.takeIf { it.isNotBlank() } ?: continue
+                    val normalizedPath = rawPath.replace(File.separatorChar, '/')
+                    if (!normalizedPath.startsWith(rootPrefix) && normalizedPath != root) continue
+                    val normalized = normalizedPath.lowercase()
+                    if (normalized.contains("/android/data/") ||
+                        normalized.contains("/android/obb/") ||
+                        normalized.contains("/.thumbnails/")) continue
+                    val file = File(rawPath)
+                    if (!file.isFile || !file.canRead()) continue
+                    val name = rows.getString(nameColumn)?.takeIf { it.isNotBlank() } ?: file.name
+                    val size = if (sizeColumn >= 0 && !rows.isNull(sizeColumn)) {
+                        rows.getLong(sizeColumn).coerceAtLeast(0L)
+                    } else file.length().coerceAtLeast(0L)
+                    val modified = if (modifiedColumn >= 0 && !rows.isNull(modifiedColumn)) {
+                        rows.getLong(modifiedColumn).coerceAtLeast(0L) * 1000L
+                    } else file.lastModified()
+                    val mime = if (mimeColumn >= 0 && !rows.isNull(mimeColumn)) rows.getString(mimeColumn) else null
+                    result.add(
+                        FileEntry(
+                            location = file.absolutePath,
+                            name = name,
+                            isDirectory = false,
+                            sizeBytes = size,
+                            modifiedAt = modified,
+                            mimeType = mime ?: mimeFromName(name),
+                        ),
+                    )
+                }
+                result.distinctBy { it.location }.sortedByDescending { it.modifiedAt }
+            }
+        }.getOrNull()
+
+        // If MediaStore is unsupported on this device, preserve the provider-based behavior.
+        // A valid but empty index stays empty; it should not trigger a second, slower full scan.
+        return indexed ?: listFilesRecursively(context, rootLocation, maxFiles, maxDepth)
     }
 
     fun rename(context: Context, entry: FileEntry, newName: String): Result<Unit> = runCatching {
