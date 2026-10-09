@@ -285,14 +285,24 @@ private fun FilePilotApp() {
                 )
             }
             scope.launch {
-                val result = withContext(Dispatchers.IO) {
-                    FileRepository.copyToTree(context, target, uri)
+                processing = true
+                val result = try {
+                    withContext(Dispatchers.IO) {
+                        FileRepository.copyToTree(context, target, uri)
+                    }
+                } finally {
+                    processing = false
                 }
                 if (result.isFailure) {
                     snackbarHostState.showSnackbar(context.getString(R.string.error_operation))
                 } else if (shouldMove) {
-                    val removed = withContext(Dispatchers.IO) {
-                        FileRepository.delete(context, target).isSuccess
+                    processing = true
+                    val removed = try {
+                        withContext(Dispatchers.IO) {
+                            FileRepository.delete(context, target).isSuccess
+                        }
+                    } finally {
+                        processing = false
                     }
                     snackbarHostState.showSnackbar(
                         context.getString(if (removed) R.string.move_success else R.string.move_partial)
@@ -335,10 +345,15 @@ private fun FilePilotApp() {
                 )
             }
             scope.launch {
-                val result = withContext(Dispatchers.IO) {
-                    val item = TrashRepository.find(context, id)
-                    if (item == null) Result.failure(IllegalStateException("Trash item not found"))
-                    else TrashRepository.restoreToTree(context, item, uri)
+                processing = true
+                val result = try {
+                    withContext(Dispatchers.IO) {
+                        val item = TrashRepository.find(context, id)
+                        if (item == null) Result.failure(IllegalStateException("Trash item not found"))
+                        else TrashRepository.restoreToTree(context, item, uri)
+                    }
+                } finally {
+                    processing = false
                 }
                 snackbarHostState.showSnackbar(
                     context.getString(if (result.isSuccess) R.string.trash_restore_success else R.string.trash_operation_error)
