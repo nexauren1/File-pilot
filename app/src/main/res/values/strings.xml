@@ -182,4 +182,17 @@
     <string name="share_recent_title">Share a recent file</string>
     <string name="share_empty">Opened files will appear here for quick sharing.</string>
 
+
+    <string name="cleaner_recommendations_title">Find space to free up</string>
+    <string name="cleaner_large_preview">Review large videos, downloads and other files.</string>
+    <string name="cleaner_duplicates_preview">Find extra copies while keeping one original.</string>
+    <string name="cleaner_installer_preview">Review downloaded app packages you may no longer need.</string>
+    <string name="cleaner_manual_title">You stay in control</string>
+    <string name="cleaner_manual_body">FilePilot never deletes candidates automatically. Each selected item is sent to Trash for review.</string>
+    <string name="cleaner_results_title">Scan summary</string>
+    <string name="cleaner_scan_again">Scan again</string>
+    <string name="large_files_short">Large files</string>
+    <string name="duplicates_short">Duplicates</string>
+    <string name="installers_short">Installers</string>
+
 </resources>
