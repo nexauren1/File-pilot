@@ -87,7 +87,7 @@ class FileViewerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, true)
         val uri = intent.getStringExtra(EXTRA_URI)?.let(Uri::parse)
-        val name = intent.getStringExtra(EXTRA_NAME).orEmpty().ifBlank { "File" }
+        val name = intent.getStringExtra(EXTRA_NAME).orEmpty().ifBlank { getString(R.string.viewer_default_file) }
         val mime = intent.getStringExtra(EXTRA_MIME)
         if (uri == null) {
             finish()
@@ -157,12 +157,12 @@ private fun FileViewerScreen(
                         Text(fileName, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
                         Text(
                             when (kind) {
-                                ViewerKind.PDF -> "PDF"
-                                ViewerKind.IMAGE -> "Image"
-                                ViewerKind.VIDEO -> "Video"
-                                ViewerKind.AUDIO -> "Audio"
-                                ViewerKind.TEXT -> "Text file"
-                                ViewerKind.EXTERNAL -> "File preview"
+                                ViewerKind.PDF -> androidx.compose.ui.res.stringResource(R.string.viewer_type_pdf)
+                                ViewerKind.IMAGE -> androidx.compose.ui.res.stringResource(R.string.viewer_type_image)
+                                ViewerKind.VIDEO -> androidx.compose.ui.res.stringResource(R.string.viewer_type_video)
+                                ViewerKind.AUDIO -> androidx.compose.ui.res.stringResource(R.string.viewer_type_audio)
+                                ViewerKind.TEXT -> androidx.compose.ui.res.stringResource(R.string.viewer_type_text)
+                                ViewerKind.EXTERNAL -> androidx.compose.ui.res.stringResource(R.string.viewer_type_other)
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -171,12 +171,12 @@ private fun FileViewerScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(R.string.back))
                     }
                 },
                 actions = {
                     IconButton(onClick = onOpenExternally) {
-                        Icon(Icons.Outlined.OpenInNew, contentDescription = "Open with another app")
+                        Icon(Icons.Outlined.OpenInNew, contentDescription = androidx.compose.ui.res.stringResource(R.string.viewer_open_with))
                     }
                 },
             )
@@ -297,7 +297,7 @@ private fun PdfPage(uri: Uri, index: Int) {
         if (loaded != null) {
             Image(
                 bitmap = loaded.asImageBitmap(),
-                contentDescription = "PDF page ${index + 1}",
+                contentDescription = androidx.compose.ui.res.stringResource(R.string.viewer_pdf_page, index + 1),
                 modifier = Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color.White, RoundedCornerShape(10.dp)),
                 contentScale = ContentScale.FillWidth,
             )
@@ -306,7 +306,7 @@ private fun PdfPage(uri: Uri, index: Int) {
         } else {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 30.dp), color = ViewerPurple)
         }
-        Text(" ${index + 1} ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(4.dp))
+        Text(androidx.compose.ui.res.stringResource(R.string.viewer_page_number, index + 1), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(4.dp))
     }
 }
 
