@@ -103,4 +103,7 @@
     <string name="favorite_remove_action">Remove from favorites</string>
     <string name="favorite_added">Added to favorites.</string>
     <string name="favorite_removed">Removed from favorites.</string>
+
+    <string name="recents_title">Recent files</string>
+    <string name="recents_subtitle">Quick access to files you opened recently.</string>
 </resources>
