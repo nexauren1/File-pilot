@@ -417,6 +417,7 @@ data class ManagedAppInfo(
     val label: String,
     val isSystem: Boolean,
     val canUninstall: Boolean,
+    val canLaunch: Boolean,
 )
 
 private fun installedApps(context: Context): List<ManagedAppInfo> {
@@ -426,9 +427,13 @@ private fun installedApps(context: Context): List<ManagedAppInfo> {
     return apps.map { info ->
         val label = runCatching { pm.getApplicationLabel(info).toString() }.getOrDefault(info.packageName)
         val system = info.flags and ApplicationInfo.FLAG_SYSTEM != 0
-        ManagedAppInfo(info.packageName, label, system, !system && info.packageName != context.packageName)
+        val canLaunch = runCatching { pm.getLaunchIntentForPackage(info.packageName) != null }.getOrDefault(false)
+        ManagedAppInfo(info.packageName, label, system, !system && info.packageName != context.packageName, canLaunch)
     }.sortedBy { it.label.lowercase(Locale.getDefault()) }
 }
+
+/** Used by the home dashboard to count installed user apps, not APK installer files. */
+fun installedAppsCount(context: Context): Int = installedApps(context).count { !it.isSystem }
 
 @Composable
 fun ToolsScreen(
@@ -906,7 +911,12 @@ fun SecurityScreen(modifier: Modifier, rootLocation: String?, onRequestAccess: (
 }
 
 @Composable
-fun AppManagerScreen(modifier: Modifier, onOpenInfo: (String) -> Unit, onUninstall: (String) -> Unit) {
+fun AppManagerScreen(
+    modifier: Modifier,
+    onOpenInfo: (String) -> Unit,
+    onUninstall: (String) -> Unit,
+    onLaunch: (String) -> Unit,
+) {
     val context = LocalContext.current
     var allApps by remember { mutableStateOf<List<ManagedAppInfo>>(emptyList()) }
     var showSystem by remember { mutableStateOf(false) }
@@ -944,7 +954,12 @@ fun AppManagerScreen(modifier: Modifier, onOpenInfo: (String) -> Unit, onUninsta
                                     Text(app.packageName, color = FeatureMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (app.canLaunch) {
+                                    TextButton(onClick = { onLaunch(app.packageName) }) {
+                                        Text(stringResource(R.string.apps_open))
+                                    }
+                                }
                                 TextButton(onClick = { onOpenInfo(app.packageName) }) {
                                     Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Text(stringResource(R.string.apps_open_info))

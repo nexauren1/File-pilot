@@ -40,4 +40,27 @@ class FileCategoryTest {
         assertEquals(FileCategory.OTHER, FileCategory.fromFileName("data.custom"))
         assertEquals(FileCategory.OTHER, FileCategory.fromFileName("README"))
     }
+
+    @Test
+    fun builtInPreviewSupportsCommonMediaAndTextTypes() {
+        listOf(
+            "report.pdf", "photo.jpg", "clip.mp4", "song.mp3", "notes.txt", "data.json"
+        ).forEach { name ->
+            assertTrue("$name should have an in-app preview", FileCategory.hasInAppPreview(name))
+        }
+    }
+
+    @Test
+    fun unsupportedDocumentsUseAndroidViewerFallback() {
+        listOf("report.docx", "archive.zip", "installer.apk", "book.epub").forEach { name ->
+            assertFalse("$name should use a compatible external app", FileCategory.hasInAppPreview(name))
+        }
+    }
+
+    @Test
+    fun mimeTypeCanIdentifyPreviewWhenExtensionIsUnknown() {
+        assertTrue(FileCategory.hasInAppPreview("download", "application/pdf"))
+        assertTrue(FileCategory.hasInAppPreview("media", "video/mp4"))
+        assertFalse(FileCategory.hasInAppPreview("opaque", "application/octet-stream"))
+    }
 }

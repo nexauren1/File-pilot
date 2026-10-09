@@ -79,40 +79,42 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v0.4.0-beta.1"
+          TAG="v0.5.0-beta.1"
           APK="app/build/outputs/apk/release/app-release.apk"
-          ASSET="FilePilot-0.4.0-beta.1.apk"
+          ASSET="FilePilot-0.5.0-beta.1.apk"
           cp "$APK" "$ASSET"
           NOTES="$(cat <<'EOF'
-          FilePilot 0.4.0 Android beta — redesigned file collections, navigation, and original visual identity.
+          FilePilot 0.5.0 Android beta — in-app viewers, improved home collections, and reworked navigation.
 
           New in this beta:
-          - Category views are file collections: folders are not shown inside Images, Videos, Audio, Documents, Downloads, Archives, APKs, and other typed collections.
-          - Images and Videos use a two-column thumbnail grid. Image previews and video frames are generated locally when the Android storage provider supports them.
-          - Folder navigation is separated into Storage / All files.
-          - Refreshed home dashboard with a FilePilot brand panel, storage usage, category cards, recent files, Favorites, Safe Folder, and app-management access.
-          - Reworked full navigation sheet separates Home, Storage, Clean, Share, recents, collections, tools, and settings.
-          - Global processing bar and animated transitions for file operations, category loading, cleaner scans, and Safe Folder operations.
-          - Original FilePilot adaptive launcher icon and custom vector illustrations for access guidance, empty states, and cleaner completion.
-          - Cleaner recommendations for large files, exact duplicates, and APK installers; duplicate review preserves one copy per exact-match group.
-          - Trash, app manager, local heuristic security review, encrypted Safe Folder, and native Android sharing remain available.
-          - English and Portuguese labels for the refreshed screens.
+          - Built-in PDF reader using Android PdfRenderer for supported, readable PDFs.
+          - In-app previews for common Android-decodable image formats.
+          - In-app video player using VideoView and audio player using MediaPlayer with basic playback controls.
+          - Plain-text viewer limited to the first 1 MB; other formats can be opened with compatible Android apps.
+          - Home category tiles display the count and total file size found by a bounded recursive scan (up to 8,000 files and 8 levels).
+          - Applications is now a dedicated installed-app collection with Launch when available, App info, and uninstall request; APK installer files remain in their own category.
+          - Starred files are featured on the home screen, alongside shortcuts to Favorites and encrypted Safe Folder.
+          - Navigation drawer is grouped into Navigation, Collections, and Tools & settings.
+          - Existing file collections remain files-only; directories stay in Storage / All files.
+          - Existing image/video thumbnail grid, Cleaner, Trash, Safe Folder, local heuristic security review, and English/Portuguese strings remain.
 
-          The interaction patterns use Google Files as a UX reference; FilePilot has its own name, icon artwork, colors, and code.
+          Files by Google functions were researched as a UX reference. FilePilot uses original branding and implementation; this beta does NOT claim full feature parity.
 
           IMPORTANT — beta/testing limitations:
-          - This APK uses the Android debug signing key for sideload testing. It is NOT a production-store signing build.
-          - The Share screen uses Android's available sharing targets; it is not a custom offline-transfer protocol.
-          - Security review is heuristic and is NOT a full antivirus, does not use a malware-signature database, and cannot certify files as safe. Keep Android/Google Play Protect enabled.
-          - FilePilot Trash stores deleted items inside app-private storage. Emptying Trash, clearing app data, or uninstalling FilePilot can permanently remove those items.
+          - This APK uses the Android debug signing key for sideload testing and is NOT a production-store signing build.
+          - PDF rendering, image formats, and audio/video playback depend on Android support, provider access, and readable files. Unsupported formats open with a compatible app.
+          - Category size summaries are bounded scan estimates, not exact system disk-usage values.
+          - The Share screen uses Android's Sharesheet; it is not a custom offline-transfer protocol.
+          - Security review is heuristic, NOT a full antivirus. Keep Android/Google Play Protect enabled.
+          - FilePilot Trash is app-private. Emptying Trash, clearing app data, or uninstalling can permanently remove its contents.
           - Safe Folder data may be unrecoverable if the PIN is forgotten; clearing app data or uninstalling may delete the vault.
-          - Test with non-critical files on physical devices before relying on Trash or Safe Folder. Store launch requires policy review, privacy documentation, device testing, and a private production signing key.
+          - Test with non-critical files on physical Android devices before relying on Trash or Safe Folder. Store launch requires policy review, privacy documentation, device testing, and a private production signing key.
           EOF
           )"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "FilePilot 0.4.0 Beta 1" --notes "$NOTES" --prerelease
+            gh release edit "$TAG" --title "FilePilot 0.5.0 Beta 1" --notes "$NOTES" --prerelease
             gh release upload "$TAG" "$ASSET" --clobber
           else
-            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "FilePilot 0.4.0 Beta 1" --notes "$NOTES" --prerelease
+            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "FilePilot 0.5.0 Beta 1" --notes "$NOTES" --prerelease
           fi
           echo "Published release: https://github.com/nexauren1/File-pilot/releases/tag/$TAG"

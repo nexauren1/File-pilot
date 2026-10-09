@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -128,6 +129,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import com.nexauren.filepilot.data.FileCategory
@@ -187,6 +190,8 @@ private fun FilePilotApp() {
     var reload by remember { mutableIntStateOf(0) }
     var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var favorites by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
+    var homeFiles by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
+    var homeAppCount by remember { mutableIntStateOf(0) }
     var recentEntries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var trashEntries by remember { mutableStateOf<List<TrashItem>>(emptyList()) }
     var trashRestorePendingId by remember { mutableStateOf<String?>(null) }
@@ -383,12 +388,22 @@ private fun FilePilotApp() {
         rootLocation?.let { stack.add(it) }
     }
 
-    LaunchedEffect(tabName, reload) {
+    LaunchedEffect(tabName, reload, rootLocation) {
         when (tab) {
             AppTab.FAVORITES -> favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
-            AppTab.RECENTS, AppTab.HOME, AppTab.SHARE -> recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
+            AppTab.RECENTS, AppTab.SHARE -> recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
             AppTab.TRASH -> trashEntries = withContext(Dispatchers.IO) { TrashRepository.list(context) }
             else -> Unit
+        }
+        if (tab == AppTab.HOME) {
+            recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
+            favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
+            homeFiles = rootLocation?.let { location ->
+                withContext(Dispatchers.IO) {
+                    FileRepository.listFilesRecursively(context, location, maxFiles = 8000, maxDepth = 8)
+                }
+            } ?: emptyList()
+            homeAppCount = withContext(Dispatchers.IO) { installedAppsCount(context) }
         }
     }
 
@@ -462,11 +477,21 @@ private fun FilePilotApp() {
         }
         try {
             val uri = FileRepository.shareUri(context, entry)
-            val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, entry.mimeType ?: "*/*")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val mimeType = entry.mimeType ?: "*/*"
+            if (FileCategory.hasInAppPreview(entry.name, mimeType)) {
+                context.startActivity(Intent(context, FileViewerActivity::class.java).apply {
+                    putExtra(FileViewerActivity.EXTRA_URI, uri.toString())
+                    putExtra(FileViewerActivity.EXTRA_NAME, entry.name)
+                    putExtra(FileViewerActivity.EXTRA_MIME, mimeType)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                })
+            } else {
+                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mimeType)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(viewIntent, entry.name))
             }
-            context.startActivity(Intent.createChooser(viewIntent, entry.name))
             RecentFilesRepository.recordOpen(context, entry)
             reload++
         } catch (_: Exception) {
@@ -628,7 +653,22 @@ private fun FilePilotApp() {
                 onOpenSafeFolder = { vaultPendingMove = null; tabName = AppTab.SAFE.name },
                 onOpenApps = { tabName = AppTab.APPS.name },
                 recentFiles = recentEntries,
+                favoriteFiles = favorites,
+                categorySummaries = remember(homeFiles) {
+                    listOf(
+                        FileCategory.DOWNLOADS, FileCategory.IMAGES, FileCategory.VIDEOS,
+                        FileCategory.AUDIO, FileCategory.DOCUMENTS, FileCategory.ARCHIVES,
+                        FileCategory.APKS, FileCategory.OTHER,
+                    ).associateWith { category ->
+                        val matching = homeFiles.filter { entry ->
+                            !entry.isDirectory && category.matches(entry.name, false, entry.location)
+                        }
+                        matching.size to matching.sumOf { it.sizeBytes.coerceAtLeast(0L) }
+                    }
+                },
+                installedAppsCount = homeAppCount,
                 onOpenRecentEntry = ::openEntry,
+                onOpenFavoriteEntry = ::openEntry,
                 onCategory = { category ->
                     filterName = category.name
                     query = ""
@@ -703,6 +743,13 @@ private fun FilePilotApp() {
                 onUninstall = { packageName ->
                     runCatching { context.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName"))) }
                         .onFailure { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) } }
+                },
+                onLaunch = { packageName ->
+                    runCatching {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+                            ?: throw ActivityNotFoundException("No launcher activity for $packageName")
+                        context.startActivity(launchIntent)
+                    }.onFailure { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) } }
                 },
             )
             AppTab.SECURITY -> SecurityScreen(
@@ -878,86 +925,103 @@ private fun FilePilotApp() {
     }
 
     if (mainMenuExpanded) {
-        ModalBottomSheet(
+        Dialog(
             onDismissRequest = { mainMenuExpanded = false },
-            containerColor = Color.White,
+            properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 26.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+            Row(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)).clickable { mainMenuExpanded = false },
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                Column(
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(0.86f)
+                        .width(320.dp)
+                        .background(Color.White, RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp))
+                        .clickable { }
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 18.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    Box(
-                        Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(AppBlue),
-                        contentAlignment = Alignment.Center,
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(Icons.Outlined.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                        Box(
+                            Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(AppBlue),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Outlined.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+                            Text(stringResource(R.string.home_subtitle), style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+                        }
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-                        Text(stringResource(R.string.home_subtitle), style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+                    Divider(color = Color(0xFFECEAF4))
+                    Text(stringResource(R.string.menu_section_navigation), style = MaterialTheme.typography.labelLarge, color = SecondaryText, modifier = Modifier.padding(top = 10.dp, bottom = 3.dp))
+                    MenuNavigationRow(stringResource(R.string.home_title), Icons.Outlined.Home, selected = tab == AppTab.HOME) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.HOME.name
+                        filterName = FileCategory.ALL.name
+                        query = ""
                     }
+                    MenuNavigationRow(stringResource(R.string.storage_title), Icons.Outlined.Storage, selected = tab == AppTab.BROWSE && filter == FileCategory.ALL) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.BROWSE.name
+                        filterName = FileCategory.ALL.name
+                        stack.clear()
+                        rootLocation?.let { stack.add(it) }
+                        query = ""
+                    }
+                    MenuNavigationRow(stringResource(R.string.tab_clean), Icons.Outlined.CleaningServices, selected = tab == AppTab.CLEAN || tab == AppTab.CLEANER) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.CLEAN.name
+                    }
+                    MenuNavigationRow(stringResource(R.string.tab_share), Icons.Outlined.Share, selected = tab == AppTab.SHARE) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.SHARE.name
+                    }
+                    MenuNavigationRow(stringResource(R.string.recents_title), Icons.Outlined.History, selected = tab == AppTab.RECENTS) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.RECENTS.name
+                    }
+                    Text(stringResource(R.string.menu_section_collections), style = MaterialTheme.typography.labelLarge, color = SecondaryText, modifier = Modifier.padding(top = 12.dp, bottom = 3.dp))
+                    MenuNavigationRow(stringResource(R.string.favorites_title), Icons.Outlined.Star, selected = tab == AppTab.FAVORITES) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.FAVORITES.name
+                    }
+                    MenuNavigationRow(stringResource(R.string.vault_title), Icons.Outlined.Lock, selected = tab == AppTab.SAFE) {
+                        mainMenuExpanded = false
+                        vaultPendingMove = null
+                        tabName = AppTab.SAFE.name
+                    }
+                    Text(stringResource(R.string.menu_section_tools), style = MaterialTheme.typography.labelLarge, color = SecondaryText, modifier = Modifier.padding(top = 12.dp, bottom = 3.dp))
+                    MenuNavigationRow(stringResource(R.string.toolbox_title), Icons.Outlined.Storage, selected = tab == AppTab.TOOLS) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.TOOLS.name
+                    }
+                    MenuNavigationRow(stringResource(R.string.trash_title), Icons.Outlined.Delete, selected = tab == AppTab.TRASH) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.TRASH.name
+                    }
+                    MenuNavigationRow(stringResource(R.string.apps_title), Icons.Outlined.Apps, selected = tab == AppTab.APPS) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.APPS.name
+                    }
+                    MenuNavigationRow(stringResource(R.string.security_title), Icons.Outlined.CheckCircle, selected = tab == AppTab.SECURITY) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.SECURITY.name
+                    }
+                    MenuNavigationRow(stringResource(R.string.settings_title), Icons.Outlined.Settings, selected = tab == AppTab.SETTINGS) {
+                        mainMenuExpanded = false
+                        tabName = AppTab.SETTINGS.name
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.settings_version), color = SecondaryText, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(vertical = 8.dp))
                 }
-                Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.labelLarge, color = SecondaryText, modifier = Modifier.padding(top = 4.dp, bottom = 3.dp))
-                MenuNavigationRow(stringResource(R.string.home_title), Icons.Outlined.Home, selected = tab == AppTab.HOME) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.HOME.name
-                    filterName = FileCategory.ALL.name
-                    query = ""
-                }
-                MenuNavigationRow(stringResource(R.string.storage_title), Icons.Outlined.Storage, selected = tab == AppTab.BROWSE && filter == FileCategory.ALL) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.BROWSE.name
-                    filterName = FileCategory.ALL.name
-                    stack.clear()
-                    rootLocation?.let { stack.add(it) }
-                    query = ""
-                }
-                MenuNavigationRow(stringResource(R.string.tab_clean), Icons.Outlined.CleaningServices, selected = tab == AppTab.CLEAN || tab == AppTab.CLEANER) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.CLEAN.name
-                }
-                MenuNavigationRow(stringResource(R.string.tab_share), Icons.Outlined.Share, selected = tab == AppTab.SHARE) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.SHARE.name
-                }
-                MenuNavigationRow(stringResource(R.string.recents_title), Icons.Outlined.History, selected = tab == AppTab.RECENTS) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.RECENTS.name
-                }
-                MenuNavigationRow(stringResource(R.string.favorites_title), Icons.Outlined.Star, selected = tab == AppTab.FAVORITES) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.FAVORITES.name
-                }
-                MenuNavigationRow(stringResource(R.string.vault_title), Icons.Outlined.Lock, selected = tab == AppTab.SAFE) {
-                    mainMenuExpanded = false
-                    vaultPendingMove = null
-                    tabName = AppTab.SAFE.name
-                }
-                MenuNavigationRow(stringResource(R.string.toolbox_title), Icons.Outlined.Storage, selected = tab == AppTab.TOOLS) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.TOOLS.name
-                }
-                MenuNavigationRow(stringResource(R.string.trash_title), Icons.Outlined.Delete, selected = tab == AppTab.TRASH) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.TRASH.name
-                }
-                MenuNavigationRow(stringResource(R.string.apps_title), Icons.Outlined.Apps, selected = tab == AppTab.APPS) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.APPS.name
-                }
-                MenuNavigationRow(stringResource(R.string.security_title), Icons.Outlined.CheckCircle, selected = tab == AppTab.SECURITY) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.SECURITY.name
-                }
-                MenuNavigationRow(stringResource(R.string.settings_title), Icons.Outlined.Settings, selected = tab == AppTab.SETTINGS) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.SETTINGS.name
-                }
+                Spacer(Modifier.weight(1f).fillMaxHeight().clickable { mainMenuExpanded = false })
             }
         }
     }
@@ -1100,19 +1164,71 @@ private fun HomeScreen(
     onOpenSafeFolder: () -> Unit,
     onOpenApps: () -> Unit,
     recentFiles: List<FileEntry>,
+    favoriteFiles: List<FileEntry>,
+    categorySummaries: Map<FileCategory, Pair<Int, Long>>,
+    installedAppsCount: Int,
     onOpenRecentEntry: (FileEntry) -> Unit,
+    onOpenFavoriteEntry: (FileEntry) -> Unit,
     onCategory: (FileCategory) -> Unit,
     onRequestAccess: () -> Unit,
     onChooseFolder: () -> Unit,
 ) {
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Spacer(Modifier.height(4.dp))
         HomeHero(onBrowse = onOpenFiles)
         StorageCard(hasAccess = hasAccess, hasLocation = hasLocation)
         if (!hasLocation) PermissionCard(onRequestAccess, onChooseFolder)
+
+        Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CollectionCard(
+                title = stringResource(R.string.favorites_title),
+                subtitle = stringResource(R.string.favorites_subtitle),
+                icon = Icons.Outlined.Star,
+                tint = Color(0xFFFFF0D9),
+                accent = Color(0xFF986100),
+                modifier = Modifier.weight(1f),
+                onClick = onOpenFavorites,
+            )
+            CollectionCard(
+                title = stringResource(R.string.vault_title),
+                subtitle = stringResource(R.string.vault_home_subtitle),
+                icon = Icons.Outlined.Lock,
+                tint = Color(0xFFE7E3FF),
+                accent = AppBlue,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenSafeFolder,
+            )
+        }
+
+        if (favoriteFiles.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.favorites_title), fontWeight = FontWeight.SemiBold, color = Ink, modifier = Modifier.weight(1f))
+                TextButton(onClick = onOpenFavorites) { Text(stringResource(R.string.see_all)) }
+            }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                favoriteFiles.take(8).forEach { entry ->
+                    Card(
+                        modifier = Modifier.width(164.dp).clickable { onOpenFavoriteEntry(entry) },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                    ) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Icon(Icons.Outlined.Star, contentDescription = null, tint = Color(0xFF986100), modifier = Modifier.size(17.dp))
+                                Icon(if (entry.isDirectory) Icons.Outlined.Folder else categoryIcon(entry.category), contentDescription = null, tint = AppBlue, modifier = Modifier.size(18.dp))
+                            }
+                            Text(entry.name, fontWeight = FontWeight.SemiBold, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis, color = Ink)
+                            Text(formatBytes(entry.sizeBytes), color = SecondaryText, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
@@ -1121,23 +1237,36 @@ private fun HomeScreen(
         val categories = listOf(
             FileCategory.DOWNLOADS, FileCategory.IMAGES,
             FileCategory.VIDEOS, FileCategory.AUDIO,
-            FileCategory.DOCUMENTS, FileCategory.APKS,
-            FileCategory.ARCHIVES, FileCategory.OTHER,
+            FileCategory.DOCUMENTS, FileCategory.ARCHIVES,
+            FileCategory.APKS, FileCategory.OTHER,
         )
         categories.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEach { category -> CategoryCard(category, Modifier.weight(1f)) { onCategory(category) } }
+                pair.forEach { category ->
+                    val summary = categorySummaries[category]
+                    CategoryCard(
+                        category = category,
+                        modifier = Modifier.weight(1f),
+                        title = categoryLabel(category),
+                        subtitle = stringResource(
+                            R.string.category_size_summary,
+                            summary?.first ?: 0,
+                            formatBytes(summary?.second ?: 0L),
+                        ),
+                    ) { onCategory(category) }
+                }
             }
         }
-        CollectionCard(
-            title = stringResource(R.string.apps_title),
-            subtitle = stringResource(R.string.apps_description),
-            icon = Icons.Outlined.Apps,
-            tint = Color(0xFFE4ECFF),
-            accent = Color(0xFF315FB8),
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onOpenApps,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CategoryCard(
+                category = FileCategory.APKS,
+                modifier = Modifier.weight(1f),
+                title = stringResource(R.string.category_apps),
+                subtitle = stringResource(R.string.apps_count, installedAppsCount),
+                onClick = onOpenApps,
+            )
+            Spacer(Modifier.weight(1f))
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.recent_files_section), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
@@ -1175,27 +1304,6 @@ private fun HomeScreen(
             }
         }
 
-        Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CollectionCard(
-                title = stringResource(R.string.favorites_title),
-                subtitle = stringResource(R.string.favorites_subtitle),
-                icon = Icons.Outlined.Star,
-                tint = Color(0xFFFFF0D9),
-                accent = Color(0xFF986100),
-                modifier = Modifier.weight(1f),
-                onClick = onOpenFavorites,
-            )
-            CollectionCard(
-                title = stringResource(R.string.vault_title),
-                subtitle = stringResource(R.string.vault_home_subtitle),
-                icon = Icons.Outlined.Lock,
-                tint = Color(0xFFE7E3FF),
-                accent = AppBlue,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenSafeFolder,
-            )
-        }
         Card(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenFiles),
             shape = RoundedCornerShape(20.dp),
@@ -1362,14 +1470,20 @@ private fun PermissionScreen(modifier: Modifier, onRequestAccess: () -> Unit, on
 }
 
 @Composable
-private fun CategoryCard(category: FileCategory, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun CategoryCard(
+    category: FileCategory,
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+) {
     val tint = when (category) {
         FileCategory.DOWNLOADS -> Color(0xFFE4F4E8)
         FileCategory.IMAGES -> Color(0xFFFFE7E9)
         FileCategory.VIDEOS -> Color(0xFFDFF3F1)
         FileCategory.AUDIO -> Color(0xFFF1E5FF)
         FileCategory.DOCUMENTS -> Color(0xFFE4ECFF)
-        FileCategory.APKS -> Color(0xFFFFEBD9)
+        FileCategory.APKS -> Color(0xFFE7E3FF)
         FileCategory.ARCHIVES -> Color(0xFFE7E7F0)
         else -> Color(0xFFE4F0F8)
     }
@@ -1379,27 +1493,47 @@ private fun CategoryCard(category: FileCategory, modifier: Modifier = Modifier, 
         FileCategory.VIDEOS -> Teal
         FileCategory.AUDIO -> Color(0xFF7B43B5)
         FileCategory.DOCUMENTS -> Color(0xFF315FB8)
-        FileCategory.APKS -> Color(0xFFB45C18)
+        FileCategory.APKS -> AppBlue
         FileCategory.ARCHIVES -> Color(0xFF55556F)
         else -> Color(0xFF34708C)
     }
     Card(
-        modifier = modifier.height(104.dp).animateContentSize().clickable(onClick = onClick),
+        modifier = modifier.height(100.dp).animateContentSize().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(tint),
+                Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(tint),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(categoryIcon(category), contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
+                Icon(categoryIcon(category), contentDescription = null, tint = accent, modifier = Modifier.size(21.dp))
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(categoryLabel(category), modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = SecondaryText, modifier = Modifier.size(17.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    title ?: categoryLabel(category),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    color = Ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        fontSize = 10.sp,
+                        color = SecondaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = SecondaryText, modifier = Modifier.size(17.dp))
         }
     }
 }

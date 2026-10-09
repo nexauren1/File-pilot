@@ -35,7 +35,7 @@
     <string name="settings_full_access">Manage all files access</string>
     <string name="settings_folder">Choose or change folder</string>
     <string name="settings_about">About FilePilot</string>
-    <string name="settings_version">Version 0.4.0 · Beta testing</string>
+    <string name="settings_version">Version 0.5.0 · Beta testing</string>
     <string name="tab_home">Home</string>
     <string name="tab_browse">Files</string>
     <string name="tab_settings">Settings</string>
@@ -201,5 +201,38 @@
     <string name="large_files_short">Large files</string>
     <string name="duplicates_short">Duplicates</string>
     <string name="installers_short">Installers</string>
+
+
+    <string name="category_apps">Apps</string>
+    <string name="category_size_summary">%1$d files · %2$s</string>
+    <string name="apps_count">%1$d installed apps</string>
+    <string name="menu_section_navigation">Navigation</string>
+    <string name="menu_section_collections">Collections</string>
+    <string name="menu_section_tools">Tools and settings</string>
+    <string name="viewer_open_with">Open with another app</string>
+    <string name="viewer_unsupported">FilePilot has no built-in viewer for this format. Choose a compatible Android app to open it.</string>
+    <string name="viewer_pdf_loading">Loading PDF pages…</string>
+    <string name="viewer_pdf_error">This PDF could not be rendered. The file may be damaged or protected.</string>
+    <string name="viewer_image_error">This image could not be displayed.</string>
+    <string name="viewer_audio_loading">Preparing audio…</string>
+    <string name="viewer_audio_error">This audio format could not be played on this device.</string>
+    <string name="viewer_play">Play</string>
+    <string name="viewer_pause">Pause</string>
+    <string name="viewer_video_loading">Loading video…</string>
+    <string name="viewer_text_loading">Loading text…</string>
+    <string name="viewer_text_error">This text file could not be opened.</string>
+    <string name="viewer_text_truncated">Only the first 1 MB is shown.</string>
+    <string name="apps_open">Open</string>
+
+
+    <string name="viewer_default_file">File</string>
+    <string name="viewer_type_pdf">PDF document</string>
+    <string name="viewer_type_image">Image</string>
+    <string name="viewer_type_video">Video</string>
+    <string name="viewer_type_audio">Audio</string>
+    <string name="viewer_type_text">Text file</string>
+    <string name="viewer_type_other">File preview</string>
+    <string name="viewer_pdf_page">PDF page %1$d</string>
+    <string name="viewer_page_number">Page %1$d</string>
 
 </resources>
