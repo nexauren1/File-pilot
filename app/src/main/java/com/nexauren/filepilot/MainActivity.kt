@@ -1784,6 +1784,7 @@ private fun FileListScreen(
 private fun MediaCollectionTile(
     entry: FileEntry,
     onOpen: () -> Unit,
+    onShowInfo: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onMoveToSafeFolder: () -> Unit,
@@ -1811,14 +1812,19 @@ private fun MediaCollectionTile(
                         Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = Ink)
                     }
                     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.file_details)) }, onClick = { menuExpanded = false; onShowInfo() })
+                        if (!entry.isDirectory) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(if (isFavorite) R.string.favorite_remove_action else R.string.favorite_add_action)) },
                             onClick = { menuExpanded = false; onToggleFavorite() },
                         )
-                        DropdownMenuItem(text = { Text(stringResource(R.string.action_copy_to)) }, onClick = { menuExpanded = false; onCopyToFolder() })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.action_move_to)) }, onClick = { menuExpanded = false; onMoveToFolder() })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.action_move_safe)) }, onClick = { menuExpanded = false; onMoveToSafeFolder() })
+                        if (!entry.isDirectory) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.action_copy_to)) }, onClick = { menuExpanded = false; onCopyToFolder() })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.action_move_to)) }, onClick = { menuExpanded = false; onMoveToFolder() })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.action_move_safe)) }, onClick = { menuExpanded = false; onMoveToSafeFolder() })
+                        }
                         DropdownMenuItem(text = { Text(stringResource(R.string.action_rename)) }, onClick = { menuExpanded = false; onRename() })
                         DropdownMenuItem(text = { Text(stringResource(R.string.action_delete)) }, onClick = { menuExpanded = false; onDelete() })
                     }
@@ -1829,7 +1835,11 @@ private fun MediaCollectionTile(
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Ink, fontWeight = FontWeight.SemiBold)
-                Text(formatBytes(entry.sizeBytes), color = SecondaryText, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    if (entry.isDirectory) stringResource(R.string.folder) else formatBytes(entry.sizeBytes),
+                    color = SecondaryText,
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
@@ -1989,6 +1999,7 @@ private fun categoryAccent(category: FileCategory): Color = when (category) {
 private fun FileRow(
     entry: FileEntry,
     onClick: () -> Unit,
+    onShowInfo: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onMoveToSafeFolder: () -> Unit,
@@ -2014,7 +2025,10 @@ private fun FileRow(
         Box {
             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = SecondaryText) }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.file_details)) }, onClick = { menuExpanded = false; onShowInfo() })
+                if (!entry.isDirectory) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(if (isFavorite) R.string.favorite_remove_action else R.string.favorite_add_action)) },
                     onClick = { menuExpanded = false; onToggleFavorite() },
