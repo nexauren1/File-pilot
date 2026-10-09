@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Folder
@@ -149,6 +150,10 @@ private fun FilePilotApp() {
     var renameTarget by remember { mutableStateOf<FileEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<FileEntry?>(null) }
     var vaultPendingMove by remember { mutableStateOf<FileEntry?>(null) }
+    var transferTarget by remember { mutableStateOf<FileEntry?>(null) }
+    var transferAsMove by remember { mutableStateOf(false) }
+    var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
     var renameText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -190,6 +195,42 @@ private fun FilePilotApp() {
                 reload++
             } catch (_: SecurityException) {
                 scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) }
+            }
+        }
+    }
+
+    val destinationFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        val target = transferTarget
+        val shouldMove = transferAsMove
+        transferTarget = null
+        transferAsMove = false
+        if (uri != null && target != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    FileRepository.copyToTree(context, target, uri)
+                }
+                if (result.isFailure) {
+                    snackbarHostState.showSnackbar(context.getString(R.string.error_operation))
+                } else if (shouldMove) {
+                    val removed = withContext(Dispatchers.IO) {
+                        FileRepository.delete(context, target).isSuccess
+                    }
+                    snackbarHostState.showSnackbar(
+                        context.getString(if (removed) R.string.move_success else R.string.move_partial)
+                    )
+                    reload++
+                } else {
+                    snackbarHostState.showSnackbar(context.getString(R.string.copy_success))
+                    reload++
+                }
             }
         }
     }
@@ -335,6 +376,12 @@ private fun FilePilotApp() {
                         }) {
                             Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.search_hint))
                         }
+                        IconButton(onClick = {
+                            newFolderName = ""
+                            showCreateFolderDialog = true
+                        }) {
+                            Icon(Icons.Outlined.CreateNewFolder, contentDescription = stringResource(R.string.new_folder))
+                        }
                     }
                 },
             )
@@ -399,6 +446,16 @@ private fun FilePilotApp() {
                         onMoveToSafeFolder = { entry ->
                             vaultPendingMove = entry
                             tabName = AppTab.SAFE.name
+                        },
+                        onCopyToFolder = { entry ->
+                            transferTarget = entry
+                            transferAsMove = false
+                            destinationFolderPicker.launch(null)
+                        },
+                        onMoveToFolder = { entry ->
+                            transferTarget = entry
+                            transferAsMove = true
+                            destinationFolderPicker.launch(null)
                         },
                         onShare = { entry ->
                             try {
@@ -477,6 +534,34 @@ private fun FilePilotApp() {
             },
             dismissButton = {
                 TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+
+    if (showCreateFolderDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateFolderDialog = false },
+            title = { Text(stringResource(R.string.new_folder)) },
+            text = {
+                OutlinedTextField(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    label = { Text(stringResource(R.string.new_folder_hint)) },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val location = currentLocation
+                    val name = newFolderName
+                    showCreateFolderDialog = false
+                    if (location != null) runFileOperation(context.getString(R.string.folder_created)) {
+                        FileRepository.createDirectory(context, location, name)
+                    }
+                }) { Text(stringResource(R.string.create_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateFolderDialog = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -670,6 +755,8 @@ private fun FileListScreen(
     onRename: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
     onMoveToSafeFolder: (FileEntry) -> Unit,
+    onCopyToFolder: (FileEntry) -> Unit,
+    onMoveToFolder: (FileEntry) -> Unit,
     onShare: (FileEntry) -> Unit,
     onClearFilter: () -> Unit,
 ) {
@@ -694,7 +781,7 @@ private fun FileListScreen(
         ) {
             if (loading) item { Text("Loading…", color = SecondaryText, modifier = Modifier.padding(16.dp)) }
             items(entries, key = { it.location }) { entry ->
-                FileRow(entry, onClick = { onOpen(entry) }, onRename = { onRename(entry) }, onDelete = { onDelete(entry) }, onMoveToSafeFolder = { onMoveToSafeFolder(entry) }, onShare = { onShare(entry) })
+                FileRow(entry, onClick = { onOpen(entry) }, onRename = { onRename(entry) }, onDelete = { onDelete(entry) }, onMoveToSafeFolder = { onMoveToSafeFolder(entry) }, onCopyToFolder = { onCopyToFolder(entry) }, onMoveToFolder = { onMoveToFolder(entry) }, onShare = { onShare(entry) })
             }
         }
     }
@@ -707,6 +794,8 @@ private fun FileRow(
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onMoveToSafeFolder: () -> Unit,
+    onCopyToFolder: () -> Unit,
+    onMoveToFolder: () -> Unit,
     onShare: () -> Unit,
 ) {
     var menuExpanded by remember(entry.location) { mutableStateOf(false) }
@@ -727,6 +816,8 @@ private fun FileRow(
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
                 if (!entry.isDirectory) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_copy_to)) }, onClick = { menuExpanded = false; onCopyToFolder() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_move_to)) }, onClick = { menuExpanded = false; onMoveToFolder() })
                     DropdownMenuItem(text = { Text(stringResource(R.string.action_move_safe)) }, onClick = { menuExpanded = false; onMoveToSafeFolder() })
                 }
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_rename)) }, onClick = { menuExpanded = false; onRename() })
