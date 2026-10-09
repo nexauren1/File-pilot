@@ -1,7 +1,6 @@
 package com.nexauren.filepilot.data
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,9 +14,9 @@ class FileCategoryTest {
         assertEquals(FileCategory.APKS, FileCategory.fromFileName("package.apk"))
     }
 
-    @Test fun directoriesAreExcludedFromTypedFilters() {
+    @Test fun keepsDirectoriesVisibleInTypedFilters() {
         assertTrue(FileCategory.ALL.matches("Pictures", true))
-        assertFalse(FileCategory.IMAGES.matches("Pictures", true))
+        assertTrue(FileCategory.IMAGES.matches("Pictures", true))
         assertEquals(FileCategory.OTHER, FileCategory.fromFileName("Pictures", true))
     }
 

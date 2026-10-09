@@ -3,9 +3,10 @@ package com.nexauren.filepilot.data
 enum class FileCategory {
     ALL, IMAGES, VIDEOS, AUDIO, DOCUMENTS, ARCHIVES, APKS, OTHER;
 
+    // Keep folders visible while a type filter is active so users can drill
+    // down into DCIM, Pictures, Music, Documents, and other subdirectories.
     fun matches(fileName: String, isDirectory: Boolean): Boolean {
-        if (this == ALL) return true
-        if (isDirectory) return false
+        if (this == ALL || isDirectory) return true
         return fromFileName(fileName) == this
     }
 
