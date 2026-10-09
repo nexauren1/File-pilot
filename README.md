@@ -2,7 +2,7 @@
 
 FilePilot is an Android file manager with a familiar, category-first layout and its own violet visual identity. It is designed to keep file operations local to the device.
 
-## Current MVP
+## Current feature set (beta)
 
 - Home screen with storage usage and quick access to common file categories.
 - Categories for images, videos, audio, documents, archives, APKs, Downloads, and other files.
