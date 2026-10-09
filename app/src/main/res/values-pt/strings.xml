@@ -194,6 +194,8 @@
     <string name="cleaner_installer_preview">Revê pacotes de aplicações transferidos de que já não precisas.</string>
     <string name="cleaner_manual_title">Tu manténs o controlo</string>
     <string name="cleaner_manual_body">O FilePilot nunca elimina sugestões automaticamente. Cada elemento escolhido é enviado para a Lixeira para ser revisto.</string>
+    <string name="cleaner_scan_complete">Análise concluída</string>
+    <string name="cleaner_scan_complete_desc">A análise dos ficheiros está pronta. Revê as sugestões antes de mover qualquer item para a Lixeira.</string>
     <string name="cleaner_results_title">Resumo da análise</string>
     <string name="cleaner_scan_again">Analisar novamente</string>
     <string name="large_files_short">Ficheiros grandes</string>
