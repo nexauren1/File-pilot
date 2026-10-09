@@ -41,9 +41,9 @@
     <string name="rename_hint">Novo nome</string>
     <string name="cancel">Cancelar</string>
     <string name="save">Guardar</string>
-    <string name="delete_title">Eliminar este elemento?</string>
-    <string name="delete_message">Esta ação pode ser permanente. O elemento selecionado será removido da sua localização.</string>
-    <string name="confirm_delete">Eliminar</string>
+    <string name="delete_title">Mover este elemento para a Lixeira?</string>
+    <string name="delete_message">O elemento selecionado será movido para a Lixeira do FilePilot. Podes restaurá-lo ou eliminá-lo definitivamente mais tarde.</string>
+    <string name="confirm_delete">Mover para a Lixeira</string>
     <string name="error_operation">Não foi possível concluir a operação.</string>
     <string name="rename_success">Nome alterado.</string>
     <string name="delete_success">Elemento eliminado.</string>
