@@ -102,8 +102,8 @@
     <string name="folder_created">Folder created.</string>
     <string name="create_action">Create</string>
 
-    <string name="favorites_title">Favorites</string>
-    <string name="favorites_subtitle">Keep important files close at hand.</string>
+    <string name="favorites_title">Starred</string>
+    <string name="favorites_subtitle">Files you marked with a star.</string>
     <string name="favorite_add_action">Add to favorites</string>
     <string name="favorite_remove_action">Remove from favorites</string>
     <string name="favorite_added">Added to favorites.</string>
@@ -202,4 +202,27 @@
     <string name="duplicates_short">Duplicates</string>
     <string name="installers_short">Installers</string>
 
+    <string name="pdf_label">PDF</string>
+    <string name="pdf_previous_page">Previous page</string>
+    <string name="pdf_next_page">Next page</string>
+    <string name="pdf_page_count">%1$d / %2$d</string>
+    <string name="viewer_try_again">Try again</string>
+    <string name="image_zoom_hint">Pinch to zoom · Double-tap to reset</string>
+    <string name="image_reset_zoom">Reset zoom</string>
+    <string name="audio_failed">This audio format could not be played.</string>
+    <string name="audio_ready">Audio ready</string>
+    <string name="audio_preparing">Preparing audio…</string>
+    <string name="audio_back_10">Back 10 seconds</string>
+    <string name="audio_forward_10">Forward 10 seconds</string>
+    <string name="audio_pause">Pause</string>
+    <string name="audio_play">Play</string>
+    <string name="zip_preview_subtitle">ZIP archive · preview up to 250 entries</string>
+    <string name="zip_preview_empty">No entries could be previewed.</string>
+    <string name="open_with_another_app">Open with another app</string>
+    <string name="text_preview_title">TEXT PREVIEW</string>
+    <string name="text_preview_shortened">[Preview shortened to 1 MB of text.]</string>
+    <string name="external_viewer_title">This file needs a compatible app</string>
+    <string name="external_viewer_body">FilePilot can preview common media, PDFs, text and ZIP archives. Use another installed app for this format.</string>
+    <string name="video_playback_hint">Use the playback controls to play or seek.</string>
+    <string name="preview_title">File preview</string>
 </resources>
