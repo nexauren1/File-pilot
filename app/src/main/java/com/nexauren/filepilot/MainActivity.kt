@@ -1182,44 +1182,6 @@ private fun HomeScreen(
         StorageCard(hasAccess = hasAccess, hasLocation = hasLocation)
         if (!hasLocation) PermissionCard(onRequestAccess, onChooseFolder)
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
-            TextButton(onClick = onOpenFiles) { Text(stringResource(R.string.category_all)) }
-        }
-        val categories = listOf(
-            FileCategory.DOWNLOADS, FileCategory.IMAGES,
-            FileCategory.VIDEOS, FileCategory.AUDIO,
-            FileCategory.DOCUMENTS, FileCategory.ARCHIVES,
-            FileCategory.APKS, FileCategory.OTHER,
-        )
-        categories.chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEach { category ->
-                    val summary = categorySummaries[category]
-                    CategoryCard(
-                        category = category,
-                        modifier = Modifier.weight(1f),
-                        title = categoryLabel(category),
-                        subtitle = stringResource(
-                            R.string.category_size_summary,
-                            summary?.first ?: 0,
-                            formatBytes(summary?.second ?: 0L),
-                        ),
-                    ) { onCategory(category) }
-                }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CategoryCard(
-                category = FileCategory.APKS,
-                modifier = Modifier.weight(1f),
-                title = stringResource(R.string.category_apps),
-                subtitle = stringResource(R.string.apps_count, installedAppsCount),
-                onClick = onOpenApps,
-            )
-            Spacer(Modifier.weight(1f))
-        }
-
         Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             CollectionCard(
@@ -1265,6 +1227,45 @@ private fun HomeScreen(
                     }
                 }
             }
+        }
+
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
+            TextButton(onClick = onOpenFiles) { Text(stringResource(R.string.category_all)) }
+        }
+        val categories = listOf(
+            FileCategory.DOWNLOADS, FileCategory.IMAGES,
+            FileCategory.VIDEOS, FileCategory.AUDIO,
+            FileCategory.DOCUMENTS, FileCategory.ARCHIVES,
+            FileCategory.APKS, FileCategory.OTHER,
+        )
+        categories.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                pair.forEach { category ->
+                    val summary = categorySummaries[category]
+                    CategoryCard(
+                        category = category,
+                        modifier = Modifier.weight(1f),
+                        title = categoryLabel(category),
+                        subtitle = stringResource(
+                            R.string.category_size_summary,
+                            summary?.first ?: 0,
+                            formatBytes(summary?.second ?: 0L),
+                        ),
+                    ) { onCategory(category) }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CategoryCard(
+                category = FileCategory.APKS,
+                modifier = Modifier.weight(1f),
+                title = stringResource(R.string.category_apps),
+                subtitle = stringResource(R.string.apps_count, installedAppsCount),
+                onClick = onOpenApps,
+            )
+            Spacer(Modifier.weight(1f))
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
