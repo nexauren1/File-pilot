@@ -43,11 +43,13 @@ import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -541,6 +543,30 @@ fun TrashScreen(
 }
 
 @Composable
+private fun CleanerHeroArt() {
+    Box(Modifier.size(82.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(66.dp).clip(RoundedCornerShape(21.dp)).background(Color(0xFF494097)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.DeleteSweep,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(36.dp),
+            )
+        }
+        Box(
+            Modifier.align(Alignment.BottomEnd).size(31.dp).clip(CircleShape).background(Color(0xFF55D7C2)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF163A50), modifier = Modifier.size(25.dp))
+        }
+        Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 2.dp).size(9.dp).clip(CircleShape).background(Color(0xFFFFD37D)))
+    }
+}
+
+@Composable
 private fun ScanCompleteCard() {
     Card(
         shape = RoundedCornerShape(22.dp),
@@ -592,19 +618,59 @@ fun CleanerScreen(
     ) {
         Card(
             shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF29264D)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF30247F)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         ) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(52.dp).clip(RoundedCornerShape(17.dp)).background(Color(0xFF514A89)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.DeleteSweep, contentDescription = null, tint = Color.White, modifier = Modifier.size(29.dp))
+            Column(
+                Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.cleaner_title),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                        )
+                        Text(
+                            stringResource(R.string.cleaner_description),
+                            color = Color(0xFFDAD5FF),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(stringResource(R.string.cleaner_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(stringResource(R.string.cleaner_description), color = Color(0xFFD6D2F1), style = MaterialTheme.typography.bodySmall)
+                    CleanerHeroArt()
+                }
+                Text(
+                    stringResource(R.string.cleaner_safe_note),
+                    color = Color(0xFFE3E0F8),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                AnimatedVisibility(
+                    visible = scanning,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut(),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.White,
+                            trackColor = Color(0xFF514A89),
+                        )
+                        Text(
+                            stringResource(R.string.scan_in_progress),
+                            color = Color(0xFFDAD5FF),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
                     }
                 }
-                Text(stringResource(R.string.cleaner_safe_note), color = Color(0xFFE3E0F8), style = MaterialTheme.typography.bodySmall)
                 Button(
                     onClick = {
                         if (rootLocation == null) onRequestAccess()
@@ -620,9 +686,24 @@ fun CleanerScreen(
                         }
                     },
                     enabled = !scanning,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF30247F),
+                        disabledContainerColor = Color(0xFFDAD5FF),
+                        disabledContentColor = Color(0xFF514A89),
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(stringResource(if (scanning) R.string.scan_in_progress else R.string.cleaner_scan))
+                    Icon(
+                        if (scanning) Icons.Outlined.DeleteSweep else Icons.Outlined.Security,
+                        contentDescription = null,
+                        modifier = Modifier.size(19.dp),
+                    )
+                    Text(
+                        stringResource(if (scanning) R.string.scan_in_progress else R.string.cleaner_scan),
+                        modifier = Modifier.padding(start = 8.dp),
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
             }
         }
