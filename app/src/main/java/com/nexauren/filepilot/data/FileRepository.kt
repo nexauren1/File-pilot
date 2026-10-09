@@ -130,6 +130,7 @@ object FileRepository {
                 val output = context.contentResolver.openOutputStream(target.uri, "wt")
                     ?: error("Could not open the destination file.")
                 output.use { sink -> source.copyTo(sink, 32 * 1024) }
+                Unit
             }
         } catch (error: Throwable) {
             target.delete()
