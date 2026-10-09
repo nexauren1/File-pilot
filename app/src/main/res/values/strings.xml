@@ -18,6 +18,7 @@
     <string name="category_summary_files">%1$d files · %2$s</string>
     <string name="category_summary_apps">%1$d apps · %2$s APK files</string>
     <string name="category_summary_scanning">Calculating size…</string>
+    <string name="category_summary_no_access">Grant access to calculate size</string>
     <string name="reader_pdf_title">PDF reader</string>
     <string name="reader_pdf_page_count">%1$d pages</string>
     <string name="reader_pdf_zoom_hint">Scroll to read each page</string>
