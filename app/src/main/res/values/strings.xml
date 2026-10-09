@@ -24,6 +24,11 @@
     <string name="search_hint">Search this folder</string>
     <string name="empty_title">No files here</string>
     <string name="empty_message">Try another folder or clear the search and filter.</string>
+    <string name="empty_collection_title">No files of this type yet</string>
+    <string name="empty_collection_message">Files in this category will appear here. Check storage access or choose another folder.</string>
+    <string name="collection_files_count">%1$d files</string>
+    <string name="collection_sort_recent">Sorted by latest modified</string>
+    <string name="processing_files">Loading files…</string>
     <string name="permission_missing">Choose a folder or grant file access to begin.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_access">File access</string>
