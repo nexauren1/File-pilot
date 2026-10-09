@@ -102,8 +102,8 @@
     <string name="folder_created">Pasta criada.</string>
     <string name="create_action">Criar</string>
 
-    <string name="favorites_title">Favoritos</string>
-    <string name="favorites_subtitle">Mantém os ficheiros importantes sempre à mão.</string>
+    <string name="favorites_title">Marcados com estrela</string>
+    <string name="favorites_subtitle">Ficheiros que marcaste com uma estrela.</string>
     <string name="favorite_add_action">Adicionar aos favoritos</string>
     <string name="favorite_remove_action">Remover dos favoritos</string>
     <string name="favorite_added">Adicionado aos favoritos.</string>
@@ -202,4 +202,27 @@
     <string name="duplicates_short">Duplicados</string>
     <string name="installers_short">Instaladores</string>
 
+    <string name="pdf_label">PDF</string>
+    <string name="pdf_previous_page">Página anterior</string>
+    <string name="pdf_next_page">Página seguinte</string>
+    <string name="pdf_page_count">%1$d / %2$d</string>
+    <string name="viewer_try_again">Tentar novamente</string>
+    <string name="image_zoom_hint">Aproxima com dois dedos · Toca duas vezes para repor</string>
+    <string name="image_reset_zoom">Repor zoom</string>
+    <string name="audio_failed">Não foi possível reproduzir este formato de áudio.</string>
+    <string name="audio_ready">Áudio pronto</string>
+    <string name="audio_preparing">A preparar o áudio…</string>
+    <string name="audio_back_10">Recuar 10 segundos</string>
+    <string name="audio_forward_10">Avançar 10 segundos</string>
+    <string name="audio_pause">Pausa</string>
+    <string name="audio_play">Reproduzir</string>
+    <string name="zip_preview_subtitle">Arquivo ZIP · pré-visualização até 250 itens</string>
+    <string name="zip_preview_empty">Não foi possível pré-visualizar itens.</string>
+    <string name="open_with_another_app">Abrir com outra aplicação</string>
+    <string name="text_preview_title">PRÉ-VISUALIZAÇÃO DE TEXTO</string>
+    <string name="text_preview_shortened">[Pré-visualização limitada a 1 MB de texto.]</string>
+    <string name="external_viewer_title">Este ficheiro precisa de uma aplicação compatível</string>
+    <string name="external_viewer_body">O FilePilot pode pré-visualizar multimédia comum, PDFs, texto e arquivos ZIP. Usa outra aplicação instalada para este formato.</string>
+    <string name="video_playback_hint">Usa os controlos para reproduzir ou avançar no vídeo.</string>
+    <string name="preview_title">Pré-visualização</string>
 </resources>
