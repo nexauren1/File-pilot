@@ -1154,6 +1154,28 @@ private fun HomeScreen(
         StorageCard(hasAccess = hasAccess, hasLocation = hasLocation)
         if (!hasLocation) PermissionCard(onRequestAccess, onChooseFolder)
 
+        Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CollectionCard(
+                title = stringResource(R.string.favorites_title),
+                subtitle = stringResource(R.string.favorites_subtitle),
+                icon = Icons.Outlined.Star,
+                tint = Color(0xFFFFF0D9),
+                accent = Color(0xFF986100),
+                modifier = Modifier.weight(1f),
+                onClick = onOpenFavorites,
+            )
+            CollectionCard(
+                title = stringResource(R.string.vault_title),
+                subtitle = stringResource(R.string.vault_home_subtitle),
+                icon = Icons.Outlined.Lock,
+                tint = Color(0xFFE7E3FF),
+                accent = AppBlue,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenSafeFolder,
+            )
+        }
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = Ink)
             TextButton(onClick = onOpenFiles) { Text(stringResource(R.string.category_all)) }
@@ -1215,27 +1237,6 @@ private fun HomeScreen(
             }
         }
 
-        Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CollectionCard(
-                title = stringResource(R.string.favorites_title),
-                subtitle = stringResource(R.string.favorites_subtitle),
-                icon = Icons.Outlined.Star,
-                tint = Color(0xFFFFF0D9),
-                accent = Color(0xFF986100),
-                modifier = Modifier.weight(1f),
-                onClick = onOpenFavorites,
-            )
-            CollectionCard(
-                title = stringResource(R.string.vault_title),
-                subtitle = stringResource(R.string.vault_home_subtitle),
-                icon = Icons.Outlined.Lock,
-                tint = Color(0xFFE7E3FF),
-                accent = AppBlue,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenSafeFolder,
-            )
-        }
         Card(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenFiles),
             shape = RoundedCornerShape(20.dp),
