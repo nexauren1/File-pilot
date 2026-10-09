@@ -42,7 +42,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,9 +74,9 @@ internal fun SecureFolderScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var configured by remember { mutableStateOf(SecureFolderRepository.isConfigured(context)) }
-    var unlocked by rememberSaveable { mutableStateOf(false) }
-    var pinInput by rememberSaveable { mutableStateOf("") }
-    var pinConfirm by rememberSaveable { mutableStateOf("") }
+    var unlocked by remember { mutableStateOf(false) }
+    var pinInput by remember { mutableStateOf("") }
+    var pinConfirm by remember { mutableStateOf("") }
     var sessionPin by remember { mutableStateOf("") }
     var records by remember { mutableStateOf<List<SecureVaultItem>>(emptyList()) }
     var busy by remember { mutableStateOf(false) }
