@@ -79,24 +79,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v0.1.0-beta.1"
+          TAG="v0.2.0-beta.1"
           APK="app/build/outputs/apk/release/app-release.apk"
-          ASSET="FilePilot-0.1.0-beta.1.apk"
+          ASSET="FilePilot-0.2.0-beta.1.apk"
           cp "$APK" "$ASSET"
           NOTES="$(cat <<'EOF'
-          FilePilot Android beta.
+          FilePilot 0.2.0 Android beta — expanded file manager tools.
 
-          This release is built for direct device testing. It includes categories, folder navigation, copy/move actions, Favorites, Recent files, and the encrypted Safe Folder.
+          New in this beta:
+          - FilePilot Trash with restore, permanent deletion, and empty-trash confirmation.
+          - Storage review for large files, APK installers, and exact duplicates detected using SHA-256.
+          - Installed-app manager with app-info settings and user-initiated uninstall requests.
+          - Local security review for selected suspicious file types and misleading double extensions.
+          - Separate Tools screen so the home page remains organized.
+          - Android 13+ granular media-permission prompts alongside the folder picker and all-files access workflow.
+          - Portuguese and English strings for the added screens.
 
-          IMPORTANT: this beta APK uses the Android debug signing key for sideload testing. It is not a production Google Play signing build. Before a store launch, configure a private production keystore and re-test the Safe Folder and storage permissions on real devices.
+          Existing features include file categories, search, create/rename/copy/move/share actions, favorites, recent files, and the encrypted Safe Folder.
 
-          This is an early beta. Back up important files before using it; Safe Folder contents cannot be recovered if the PIN is forgotten, and clearing app data or uninstalling may delete the vault.
+          IMPORTANT — beta/testing limitations:
+          - This APK uses the Android debug signing key for sideload testing. It is NOT a production-store signing build.
+          - Security review is heuristic and is NOT a full antivirus, does not use a malware-signature database, and cannot certify files as safe. Keep Android/Google Play Protect enabled.
+          - FilePilot Trash stores deleted items inside app-private storage. Emptying Trash, clearing app data, or uninstalling FilePilot can permanently remove those items.
+          - Safe Folder data cannot be recovered if the PIN is forgotten; clearing app data or uninstalling may delete the vault.
+          - Test with non-critical files on physical devices before relying on Trash or Safe Folder. Store launch requires policy review, privacy documentation, device testing, and a private production signing key.
           EOF
           )"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "FilePilot 0.1.0 Beta 1" --notes "$NOTES" --prerelease
+            gh release edit "$TAG" --title "FilePilot 0.2.0 Beta 1" --notes "$NOTES" --prerelease
             gh release upload "$TAG" "$ASSET" --clobber
           else
-            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "FilePilot 0.1.0 Beta 1" --notes "$NOTES" --prerelease
+            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "FilePilot 0.2.0 Beta 1" --notes "$NOTES" --prerelease
           fi
           echo "Published release: https://github.com/nexauren1/File-pilot/releases/tag/$TAG"
