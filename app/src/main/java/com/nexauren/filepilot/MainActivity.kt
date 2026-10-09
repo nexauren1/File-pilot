@@ -1190,33 +1190,34 @@ private fun HomeScreen(
             FileCategory.DOWNLOADS, FileCategory.IMAGES,
             FileCategory.VIDEOS, FileCategory.AUDIO,
             FileCategory.DOCUMENTS, FileCategory.ARCHIVES,
-            FileCategory.OTHER, FileCategory.APKS,
+            FileCategory.APKS, FileCategory.OTHER,
         )
         categories.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { category ->
-                    val isAppsCategory = category == FileCategory.APKS
-                    val categoryTitle = if (isAppsCategory) stringResource(R.string.category_apps) else categoryLabel(category)
-                    val categorySubtitle = if (isAppsCategory) {
-                        stringResource(R.string.apps_count, installedAppsCount)
-                    } else {
-                        val summary = categorySummaries[category]
-                        stringResource(
-                            R.string.category_size_summary,
-                            summary?.first ?: 0,
-                            formatBytes(summary?.second ?: 0L),
-                        )
-                    }
+                    val summary = categorySummaries[category]
                     CategoryCard(
                         category = category,
                         modifier = Modifier.weight(1f),
-                        title = categoryTitle,
-                        subtitle = categorySubtitle,
-                    ) {
-                        if (isAppsCategory) onOpenApps() else onCategory(category)
-                    }
+                        title = categoryLabel(category),
+                        subtitle = stringResource(
+                            R.string.category_size_summary,
+                            summary?.first ?: 0,
+                            formatBytes(summary?.second ?: 0L),
+                        ),
+                    ) { onCategory(category) }
                 }
             }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CategoryCard(
+                category = FileCategory.APKS,
+                modifier = Modifier.weight(1f),
+                title = stringResource(R.string.category_apps),
+                subtitle = stringResource(R.string.apps_count, installedAppsCount),
+                onClick = onOpenApps,
+            )
+            Spacer(Modifier.weight(1f))
         }
 
         Text(stringResource(R.string.collection_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
