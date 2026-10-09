@@ -188,7 +188,7 @@ object TrashRepository {
             throw error
         }
         removeRecord(context, item.id)
-        File(File(item.payloadPath).parentFile, "").deleteRecursively()
+        File(item.payloadPath).parentFile?.deleteRecursively()
     }
 
     fun deletePermanently(context: Context, id: String): Result<Unit> = runCatching {
@@ -304,7 +304,7 @@ object TrashRepository {
         error("Could not choose a unique name.")
     }
 
-    private fun safeName(name: String) = name.replace(Regex("[/\\\\\\u0000]"), "_").ifBlank { "restored-file" }
+    private fun safeName(name: String) = name.filter { it != '/' && it != '\\' && it != '\u0000' }.ifBlank { "restored-file" }
     private fun mimeFromName(name: String): String {
         val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
@@ -364,7 +364,7 @@ object StorageAnalyzer {
                             it.contains(".mp4.apk") || it.contains(".doc.exe") || it.contains(".pdf.exe")
                     }
                     if (doubleExtension || ext in setOf("exe", "bat", "cmd", "vbs", "scr", "ps1")) suspicious.add(entry)
-                    if (entry.sizeBytes in 1..HASHABLE_FILE && hashedBytes + entry.sizeBytes <= MAX_HASH_BYTES) {
+                    if (entry.sizeBytes in 1L..HASHABLE_FILE && hashedBytes + entry.sizeBytes <= MAX_HASH_BYTES) {
                         val digest = runCatching { sha256(context, entry) }.getOrNull()
                         if (digest != null) {
                             hashGroups.getOrPut(digest) { mutableListOf() }.add(entry)
