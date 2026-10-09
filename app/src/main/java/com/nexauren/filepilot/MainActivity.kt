@@ -472,7 +472,6 @@ private fun FilePilotApp() {
                                     AppTab.SAFE -> stringResource(R.string.vault_title)
                                     AppTab.TOOLS -> stringResource(R.string.toolbox_title)
                                     AppTab.TRASH -> stringResource(R.string.trash_title)
-                                    AppTab.CLEANER -> stringResource(R.string.cleaner_title)
                                     AppTab.APPS -> stringResource(R.string.apps_title)
                                     AppTab.SECURITY -> stringResource(R.string.security_title)
                                     AppTab.SETTINGS -> stringResource(R.string.settings_title)
@@ -506,8 +505,17 @@ private fun FilePilotApp() {
                 actions = {
                     if (tab == AppTab.HOME || tab == AppTab.BROWSE || tab == AppTab.SHARE) {
                         IconButton(onClick = {
-                            showSearch = !showSearch
-                            if (!showSearch) query = ""
+                            if (tab == AppTab.HOME) {
+                                tabName = AppTab.BROWSE.name
+                                filterName = FileCategory.ALL.name
+                                stack.clear()
+                                rootLocation?.let { stack.add(it) }
+                                query = ""
+                                showSearch = true
+                            } else {
+                                showSearch = !showSearch
+                                if (!showSearch) query = ""
+                            }
                         }) {
                             Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.search_hint))
                         }
