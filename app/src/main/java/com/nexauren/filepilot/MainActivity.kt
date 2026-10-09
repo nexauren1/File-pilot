@@ -856,6 +856,7 @@ private fun FilePilotApp() {
                 pendingMove = vaultPendingMove,
                 onMoveHandled = { vaultPendingMove = null },
                 onMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
+                onProcessing = { processing = it },
             )
             AppTab.SETTINGS -> SettingsScreen(
                 modifier = Modifier.padding(padding),
