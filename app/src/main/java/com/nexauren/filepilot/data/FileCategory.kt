@@ -1,7 +1,7 @@
 package com.nexauren.filepilot.data
 
 enum class FileCategory {
-    ALL, IMAGES, VIDEOS, AUDIO, DOCUMENTS, ARCHIVES, APKS, DOWNLOADS, OTHER;
+    ALL, IMAGES, VIDEOS, AUDIO, DOCUMENTS, ARCHIVES, APKS, APPS, DOWNLOADS, OTHER;
 
     // Folders remain visible while filtering so users can navigate into subdirectories.
     fun matches(fileName: String, isDirectory: Boolean, location: String? = null): Boolean {
@@ -9,6 +9,8 @@ enum class FileCategory {
         // Only ALL exposes directories; folder navigation lives in the Storage view.
         if (this == ALL) return true
         if (isDirectory) return false
+        // Installed applications are managed by PackageManager, not indexed as ordinary files.
+        if (this == APPS) return false
         if (this == DOWNLOADS) {
             val path = location.orEmpty().replace('\\', '/').lowercase()
             return path.contains("/download/") ||
