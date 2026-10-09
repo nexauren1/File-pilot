@@ -191,7 +191,12 @@ private fun FilePilotApp() {
     var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var favorites by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var homeFiles by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
+    var indexedRoot by remember { mutableStateOf<String?>(null) }
+    var indexLoading by remember { mutableStateOf(false) }
+    var indexVersion by remember { mutableIntStateOf(0) }
     var homeAppCount by remember { mutableIntStateOf(0) }
+    var collectionLayout by rememberSaveable { mutableStateOf("LIST") }
+    var collectionSort by rememberSaveable { mutableStateOf("DATE") }
     var recentEntries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var trashEntries by remember { mutableStateOf<List<TrashItem>>(emptyList()) }
     var trashRestorePendingId by remember { mutableStateOf<String?>(null) }
@@ -388,48 +393,69 @@ private fun FilePilotApp() {
         rootLocation?.let { stack.add(it) }
     }
 
-    LaunchedEffect(tabName, reload, rootLocation) {
-        when (tab) {
-            AppTab.FAVORITES -> favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
-            AppTab.RECENTS, AppTab.SHARE -> recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
-            AppTab.TRASH -> trashEntries = withContext(Dispatchers.IO) { TrashRepository.list(context) }
-            else -> Unit
-        }
-        if (tab == AppTab.HOME) {
-            recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
-            favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
-            homeFiles = rootLocation?.let { location ->
-                withContext(Dispatchers.IO) {
-                    FileRepository.listFilesRecursively(context, location, maxFiles = 8000, maxDepth = 8)
-                }
-            } ?: emptyList()
-            homeAppCount = withContext(Dispatchers.IO) { installedAppsCount(context) }
+    // Build the shared category index once per storage root or successful file mutation.
+    // MediaStore provides fast metadata on normal shared storage; SAF trees use the bounded fallback.
+    LaunchedEffect(rootLocation, indexVersion) {
+        if (rootLocation == null) {
+            homeFiles = emptyList()
+            indexedRoot = null
+            indexLoading = false
+        } else {
+            indexLoading = true
+            val indexed = withContext(Dispatchers.IO) {
+                FileRepository.listIndexedFiles(context, rootLocation, maxFiles = 12000, maxDepth = 8)
+            }
+            homeFiles = indexed
+            indexedRoot = rootLocation
+            indexLoading = false
         }
     }
 
-    LaunchedEffect(rootLocation, currentLocation, filterName, query, reload, tabName) {
-        if (tab == AppTab.BROWSE) {
-            val collectionMode = filter != FileCategory.ALL
-            val listRoot = if (collectionMode) rootLocation else currentLocation
-            if (listRoot != null) {
+    // Refresh view-specific repositories without rescanning every file on each screen change.
+    LaunchedEffect(tabName, reload) {
+        when (tab) {
+            AppTab.FAVORITES, AppTab.HOME -> favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
+            AppTab.RECENTS, AppTab.SHARE, AppTab.HOME -> recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
+            AppTab.TRASH -> trashEntries = withContext(Dispatchers.IO) { TrashRepository.list(context) }
+            else -> Unit
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        homeAppCount = withContext(Dispatchers.IO) { installedAppsCount(context) }
+    }
+
+    // Folder browsing reads only direct children. Typed categories filter the shared in-memory
+    // index, so changing Images -> Videos -> Audio does not restart a recursive disk walk.
+    LaunchedEffect(rootLocation, currentLocation, query, reload, tabName) {
+        if (tab == AppTab.BROWSE && filter == FileCategory.ALL) {
+            if (currentLocation != null) {
                 loading = true
-                val loaded = withContext(Dispatchers.IO) {
-                    if (collectionMode) FileRepository.listFilesRecursively(context, listRoot)
-                    else FileRepository.listChildren(context, listRoot)
-                }
-                val filtered = loaded.filter { entry ->
-                    val typeMatches = if (collectionMode) {
-                        !entry.isDirectory && filter.matches(entry.name, entry.isDirectory, entry.location)
-                    } else {
-                        filter.matches(entry.name, entry.isDirectory, entry.location)
-                    }
-                    typeMatches && entry.name.contains(query.trim(), ignoreCase = true)
-                }
-                entries = if (collectionMode) filtered.sortedByDescending { it.modifiedAt } else filtered
+                val directChildren = withContext(Dispatchers.IO) { FileRepository.listChildren(context, currentLocation) }
+                entries = directChildren.filter { it.name.contains(query.trim(), ignoreCase = true) }
                 loading = false
             } else {
                 entries = emptyList()
                 loading = false
+            }
+        }
+    }
+
+    LaunchedEffect(rootLocation, filterName, query, reload, tabName, homeFiles, indexedRoot, indexLoading) {
+        if (tab == AppTab.BROWSE && filter != FileCategory.ALL) {
+            if (rootLocation == null) {
+                entries = emptyList()
+                loading = false
+            } else if (indexLoading || indexedRoot != rootLocation) {
+                entries = emptyList()
+                loading = true
+            } else {
+                loading = false
+                entries = homeFiles.filter { entry ->
+                    !entry.isDirectory &&
+                        filter.matches(entry.name, false, entry.location) &&
+                        entry.name.contains(query.trim(), ignoreCase = true)
+                }
             }
         }
     }
@@ -445,6 +471,7 @@ private fun FilePilotApp() {
             snackbarHostState.showSnackbar(
                 if (result.isSuccess) successText else context.getString(R.string.error_operation)
             )
+            if (result.isSuccess) indexVersion++
             reload++
         }
     }
@@ -460,6 +487,7 @@ private fun FilePilotApp() {
             snackbarHostState.showSnackbar(
                 context.getString(if (result.isSuccess) R.string.trash_success else R.string.trash_operation_error)
             )
+            if (result.isSuccess) indexVersion++
             reload++
         }
     }
@@ -608,7 +636,7 @@ private fun FilePilotApp() {
                 },
                 )
                 AnimatedVisibility(
-                    visible = loading || processing,
+                    visible = processing || (loading && tab == AppTab.BROWSE && filter == FileCategory.ALL),
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut(),
                 ) {
