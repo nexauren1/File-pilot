@@ -86,4 +86,14 @@
     <string name="vault_delete_title">Delete from Safe Folder?</string>
     <string name="vault_delete_body">This permanently deletes the encrypted copy of %1$s.</string>
     <string name="vault_delete_success">Encrypted file deleted.</string>
+
+    <string name="action_copy_to">Copy to folder</string>
+    <string name="action_move_to">Move to folder</string>
+    <string name="copy_success">File copied to the selected folder.</string>
+    <string name="move_success">File moved to the selected folder.</string>
+    <string name="move_partial">File copied, but the original could not be removed.</string>
+    <string name="new_folder">New folder</string>
+    <string name="new_folder_hint">Folder name</string>
+    <string name="folder_created">Folder created.</string>
+    <string name="create_action">Create</string>
 </resources>
