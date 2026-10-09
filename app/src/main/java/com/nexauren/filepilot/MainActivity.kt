@@ -136,7 +136,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppTab { HOME, BROWSE, RECENTS, FAVORITES, SAFE, SETTINGS }
+private enum class AppTab { HOME, BROWSE, RECENTS, FAVORITES, SAFE, TOOLS, TRASH, CLEANER, APPS, SECURITY, SETTINGS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -152,6 +152,8 @@ private fun FilePilotApp() {
     var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var favorites by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var recentEntries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
+    var trashEntries by remember { mutableStateOf<List<TrashItem>>(emptyList()) }
+    var trashRestorePendingId by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<FileEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<FileEntry?>(null) }
@@ -181,6 +183,33 @@ private fun FilePilotApp() {
     val legacyPermissionsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { resetToRoot() }
+
+    fun launchAllFileSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:${context.packageName}"),
+            )
+            try {
+                settingsLauncher.launch(intent)
+            } catch (_: ActivityNotFoundException) {
+                settingsLauncher.launch(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }
+        } else {
+            val wanted = buildList {
+                add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+            legacyPermissionsLauncher.launch(wanted.toTypedArray())
+        }
+    }
+
+    val mediaPermissionsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        resetToRoot()
+        launchAllFileSettings()
+    }
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -241,25 +270,44 @@ private fun FilePilotApp() {
         }
     }
 
-    fun requestStorageAccess() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                Uri.parse("package:${context.packageName}"),
-            )
-            try {
-                settingsLauncher.launch(intent)
-            } catch (_: ActivityNotFoundException) {
-                settingsLauncher.launch(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+
+    val trashRestorePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        val id = trashRestorePendingId
+        trashRestorePendingId = null
+        if (uri != null && id != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
             }
-        } else {
-            val wanted = buildList {
-                add(Manifest.permission.READ_EXTERNAL_STORAGE)
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
-                    add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    val item = TrashRepository.find(context, id)
+                    if (item == null) Result.failure(IllegalStateException("Trash item not found"))
+                    else TrashRepository.restoreToTree(context, item, uri)
                 }
+                snackbarHostState.showSnackbar(
+                    context.getString(if (result.isSuccess) R.string.trash_restore_success else R.string.trash_operation_error)
+                )
+                reload++
             }
-            legacyPermissionsLauncher.launch(wanted.toTypedArray())
+        }
+    }
+
+    fun requestStorageAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            mediaPermissionsLauncher.launch(
+                arrayOf(
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_AUDIO,
+                )
+            )
+        } else {
+            launchAllFileSettings()
         }
     }
 
@@ -272,6 +320,7 @@ private fun FilePilotApp() {
         when (tab) {
             AppTab.FAVORITES -> favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
             AppTab.RECENTS -> recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
+            AppTab.TRASH -> trashEntries = withContext(Dispatchers.IO) { TrashRepository.list(context) }
             else -> Unit
         }
     }
@@ -295,6 +344,16 @@ private fun FilePilotApp() {
             val result = withContext(Dispatchers.IO) { operation() }
             snackbarHostState.showSnackbar(
                 if (result.isSuccess) successText else context.getString(R.string.error_operation)
+            )
+            reload++
+        }
+    }
+
+    fun moveToTrash(entry: FileEntry) {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { TrashRepository.moveToTrash(context, entry) }
+            snackbarHostState.showSnackbar(
+                context.getString(if (result.isSuccess) R.string.trash_success else R.string.trash_operation_error)
             )
             reload++
         }
@@ -332,6 +391,14 @@ private fun FilePilotApp() {
         vaultPendingMove = null
     }
 
+    BackHandler(enabled = tab == AppTab.TOOLS) {
+        tabName = AppTab.HOME.name
+    }
+
+    BackHandler(enabled = tab == AppTab.TRASH || tab == AppTab.CLEANER || tab == AppTab.APPS || tab == AppTab.SECURITY) {
+        tabName = AppTab.TOOLS.name
+    }
+
     BackHandler(enabled = tab == AppTab.BROWSE && stack.size > 1) {
         stack.removeAt(stack.lastIndex)
         filterName = FileCategory.ALL.name
@@ -362,6 +429,11 @@ private fun FilePilotApp() {
                                     AppTab.RECENTS -> stringResource(R.string.recents_title)
                                     AppTab.FAVORITES -> stringResource(R.string.favorites_title)
                                     AppTab.SAFE -> stringResource(R.string.vault_title)
+                                    AppTab.TOOLS -> stringResource(R.string.toolbox_title)
+                                    AppTab.TRASH -> stringResource(R.string.trash_title)
+                                    AppTab.CLEANER -> stringResource(R.string.cleaner_title)
+                                    AppTab.APPS -> stringResource(R.string.apps_title)
+                                    AppTab.SECURITY -> stringResource(R.string.security_title)
                                     AppTab.SETTINGS -> stringResource(R.string.settings_title)
                                 },
                                 fontWeight = FontWeight.Bold,
@@ -411,7 +483,7 @@ private fun FilePilotApp() {
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 NavigationBarItem(
-                    selected = tab == AppTab.HOME || tab == AppTab.RECENTS || tab == AppTab.FAVORITES,
+                    selected = tab == AppTab.HOME || tab == AppTab.RECENTS || tab == AppTab.FAVORITES || tab == AppTab.TOOLS || tab == AppTab.TRASH || tab == AppTab.CLEANER || tab == AppTab.APPS || tab == AppTab.SECURITY,
                     onClick = { tabName = AppTab.HOME.name },
                     icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_home)) },
@@ -444,6 +516,7 @@ private fun FilePilotApp() {
                 onOpenRecents = { tabName = AppTab.RECENTS.name },
                 onOpenFavorites = { tabName = AppTab.FAVORITES.name },
                 onOpenSafeFolder = { vaultPendingMove = null; tabName = AppTab.SAFE.name },
+                onOpenTools = { tabName = AppTab.TOOLS.name },
                 onCategory = { category ->
                     filterName = category.name
                     query = ""
@@ -451,6 +524,54 @@ private fun FilePilotApp() {
                 },
                 onRequestAccess = ::requestStorageAccess,
                 onChooseFolder = { folderPicker.launch(null) },
+            )
+            AppTab.TOOLS -> ToolsScreen(
+                modifier = Modifier.padding(padding),
+                onOpenTrash = { tabName = AppTab.TRASH.name },
+                onOpenCleaner = { tabName = AppTab.CLEANER.name },
+                onOpenApps = { tabName = AppTab.APPS.name },
+                onOpenSecurity = { tabName = AppTab.SECURITY.name },
+            )
+            AppTab.TRASH -> TrashScreen(
+                modifier = Modifier.padding(padding),
+                items = trashEntries,
+                onRestore = { id -> trashRestorePendingId = id; trashRestorePicker.launch(null) },
+                onDeletePermanently = { id ->
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) { TrashRepository.deletePermanently(context, id) }
+                        snackbarHostState.showSnackbar(context.getString(if (result.isSuccess) R.string.trash_permanent_deleted else R.string.trash_operation_error))
+                        reload++
+                    }
+                },
+                onEmpty = {
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) { TrashRepository.empty(context) }
+                        snackbarHostState.showSnackbar(context.getString(if (result.isSuccess) R.string.trash_emptied else R.string.trash_operation_error))
+                        reload++
+                    }
+                },
+            )
+            AppTab.CLEANER -> CleanerScreen(
+                modifier = Modifier.padding(padding),
+                rootLocation = rootLocation,
+                onRequestAccess = ::requestStorageAccess,
+                onMoveToTrash = ::moveToTrash,
+            )
+            AppTab.APPS -> AppManagerScreen(
+                modifier = Modifier.padding(padding),
+                onOpenInfo = { packageName ->
+                    runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+                        .onFailure { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) } }
+                },
+                onUninstall = { packageName ->
+                    runCatching { context.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName"))) }
+                        .onFailure { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) } }
+                },
+            )
+            AppTab.SECURITY -> SecurityScreen(
+                modifier = Modifier.padding(padding),
+                rootLocation = rootLocation,
+                onRequestAccess = ::requestStorageAccess,
             )
             AppTab.BROWSE -> {
                 if (rootLocation == null) {
@@ -653,9 +774,7 @@ private fun FilePilotApp() {
                 TextButton(onClick = {
                     val target = deleteTarget
                     deleteTarget = null
-                    if (target != null) runFileOperation(context.getString(R.string.delete_success)) {
-                        FileRepository.delete(context, target)
-                    }
+                    if (target != null) moveToTrash(target)
                 }) { Text(stringResource(R.string.confirm_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
@@ -702,6 +821,7 @@ private fun HomeScreen(
     onOpenRecents: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSafeFolder: () -> Unit,
+    onOpenTools: () -> Unit,
     onCategory: (FileCategory) -> Unit,
     onRequestAccess: () -> Unit,
     onChooseFolder: () -> Unit,
@@ -809,6 +929,21 @@ private fun HomeScreen(
                         color = SecondaryText,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                }
+            }
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenTools),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Apps, contentDescription = null, tint = AppBlue)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.toolbox_title), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.toolbox_subtitle), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
