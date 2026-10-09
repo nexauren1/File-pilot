@@ -207,6 +207,7 @@ private fun FilePilotApp() {
     var vaultPendingMove by remember { mutableStateOf<FileEntry?>(null) }
     var transferTarget by remember { mutableStateOf<FileEntry?>(null) }
     var transferAsMove by remember { mutableStateOf(false) }
+    var fileInfoTarget by remember { mutableStateOf<FileEntry?>(null) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var renameText by remember { mutableStateOf("") }
@@ -304,6 +305,7 @@ private fun FilePilotApp() {
                 } finally {
                     processing = false
                 }
+                if (result.isSuccess) indexVersion++
                 if (result.isFailure) {
                     snackbarHostState.showSnackbar(context.getString(R.string.error_operation))
                 } else if (shouldMove) {
@@ -427,7 +429,7 @@ private fun FilePilotApp() {
 
     // Folder browsing reads only direct children. Typed categories filter the shared in-memory
     // index, so changing Images -> Videos -> Audio does not restart a recursive disk walk.
-    LaunchedEffect(rootLocation, currentLocation, query, reload, tabName) {
+    LaunchedEffect(rootLocation, currentLocation, filterName, query, reload, tabName) {
         if (tab == AppTab.BROWSE && filter == FileCategory.ALL) {
             if (currentLocation != null) {
                 loading = true
