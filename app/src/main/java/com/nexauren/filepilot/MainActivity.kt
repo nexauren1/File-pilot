@@ -516,7 +516,7 @@ private fun FilePilotApp() {
                         Column {
                             Text(
                                 when (tab) {
-                                    AppTab.HOME -> stringResource(R.string.home_title)
+                                    AppTab.HOME -> stringResource(R.string.app_name)
                                     AppTab.BROWSE -> if (filter == FileCategory.ALL) {
                                         currentLocation?.let { displayLocationName(context, it) } ?: stringResource(R.string.browse_title)
                                     } else categoryLabel(filter)
@@ -533,13 +533,6 @@ private fun FilePilotApp() {
                                 },
                                 fontWeight = FontWeight.Bold,
                             )
-                            if (tab == AppTab.HOME) {
-                                Text(
-                                    stringResource(R.string.home_subtitle),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = SecondaryText,
-                                )
-                            }
                         }
                     }
                 },
