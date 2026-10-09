@@ -96,4 +96,11 @@
     <string name="new_folder_hint">Folder name</string>
     <string name="folder_created">Folder created.</string>
     <string name="create_action">Create</string>
+
+    <string name="favorites_title">Favorites</string>
+    <string name="favorites_subtitle">Keep important files close at hand.</string>
+    <string name="favorite_add_action">Add to favorites</string>
+    <string name="favorite_remove_action">Remove from favorites</string>
+    <string name="favorite_added">Added to favorites.</string>
+    <string name="favorite_removed">Removed from favorites.</string>
 </resources>
