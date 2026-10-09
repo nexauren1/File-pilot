@@ -828,6 +828,8 @@ private fun FilePilotApp() {
                             }
                         },
                         onClearFilter = { filterName = FileCategory.ALL.name; query = "" },
+                        collectionMode = filter != FileCategory.ALL,
+                        collectionCategory = filter,
                     )
                 }
             }
@@ -1270,8 +1272,8 @@ private fun PermissionScreen(modifier: Modifier, onRequestAccess: () -> Unit, on
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(Icons.Outlined.Folder, contentDescription = null, tint = AppBlue, modifier = Modifier.size(56.dp))
-        Spacer(Modifier.height(16.dp))
+        FilePilotIllustration(category = FileCategory.ALL, modifier = Modifier.padding(bottom = 18.dp))
+        Spacer(Modifier.height(2.dp))
         Text(stringResource(R.string.access_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Text(stringResource(R.string.permission_missing), color = SecondaryText, textAlign = TextAlign.Center)
@@ -1304,15 +1306,22 @@ private fun CategoryCard(category: FileCategory, modifier: Modifier = Modifier, 
         else -> Color(0xFF34708C)
     }
     Card(
-        modifier = modifier.height(104.dp).clickable(onClick = onClick),
+        modifier = modifier.height(104.dp).animateContentSize().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = tint),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
-                Icon(categoryIcon(category), contentDescription = null, tint = accent)
+            Box(
+                Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(tint),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(categoryIcon(category), contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
             }
-            Text(categoryLabel(category), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Ink)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(categoryLabel(category), modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = SecondaryText, modifier = Modifier.size(17.dp))
+            }
         }
     }
 }
@@ -1695,6 +1704,39 @@ private fun FileRow(
         }
     }
     Divider(color = Color(0xFFF0F2F6), thickness = 0.7.dp, modifier = Modifier.padding(start = 66.dp))
+}
+
+@Composable
+private fun MenuNavigationRow(
+    title: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (selected) SoftBlue else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(14.dp))
+                .background(if (selected) Color.White else Color(0xFFF3F3F8)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = AppBlue, modifier = Modifier.size(21.dp))
+        }
+        Text(
+            title,
+            modifier = Modifier.weight(1f),
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = Ink,
+        )
+        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = SecondaryText, modifier = Modifier.size(18.dp))
+    }
 }
 
 @Composable
