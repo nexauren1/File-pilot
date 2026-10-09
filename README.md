@@ -1,48 +1,57 @@
 # FilePilot
 
-FilePilot is an Android file manager with a clean category-first interface and a violet visual identity. File operations are designed to stay on the device.
+FilePilot is an Android file manager with its own visual identity, built around fast file collections, practical clean-up recommendations, and everyday file sharing.
 
-## Features in the 0.2.0 beta
+## FilePilot 0.3.0 beta
 
-- **Browse and search:** navigate folders and search the current folder.
-- **Media and file categories:** images, videos, audio, documents, archives, APK installers, Downloads, and other files.
-- **Common file actions:** open, share, rename, copy, move, create folders, and move selected items to Trash.
-- **Favorites and recents:** locally stored quick access lists.
-- **Safe Folder:** a PIN-protected vault that encrypts file contents and its index locally with AES-GCM.
-- **Trash:** deleted items are copied into FilePilot's private app storage, then removed from their original location. Users can restore an item to a folder they choose or delete it permanently.
-- **Storage cleaner:** reviews large files (100 MB or more), APK installer files, and exact duplicate files detected using SHA-256 hashes. Nothing is cleaned automatically; the user chooses what to move to Trash.
-- **App manager:** searches installed apps, shows app information in Android settings, and lets the user request uninstall for eligible user-installed apps.
-- **Security review:** locally reviews accessible file names/types for potentially misleading extensions and executable or installer files. It does **not** claim to detect all malware and is not a full antivirus.
-- **English and Portuguese** interface strings.
+This revision reorganizes the app around a **Clean · Browse · Share** bottom navigation, with a separate menu for less-frequent tools and settings.
 
-The features are organized across separate screens so the home page is not overloaded.
+### Browse
+- Quick category collections for Downloads, Images, Videos, Audio, Documents, APK installers, Archives, and other files.
+- Category views search recursively inside accessible folders and show matching files instead of only showing folders.
+- Recent files, Favorites, and Safe Folder collections.
+- Search, create folders, open files, share, rename, copy, move, and send items to Trash.
+- Installed-app manager shortcut.
 
-## Android permissions and privacy
+### Clean
+- A redesigned recommendations page for large files, exact duplicates, and APK installers.
+- SHA-256 checks to group identical files. During clean-up, FilePilot offers the extra copies for review and keeps one copy from each group.
+- Items are never removed automatically. The user chooses which candidates to send to FilePilot Trash.
+- Scan limits protect very large storage collections from unbounded traversal.
 
-On Android 13 and later, FilePilot requests the media permissions for images, videos, and audio. Managing all shared files can additionally require the Android **Manage all files** special access. Users can instead choose a folder through Android's Storage Access Framework; that access is limited to the folder they select and the operations its provider permits.
+### Share
+- Choose any supported file using Android's file picker and share through Android's Sharesheet.
+- Quick access to recently opened files for sharing. Available targets depend on the device and installed apps; this is not a custom offline-transfer protocol.
 
-The app manager declares installed-package visibility for its app-management screen. Device and store policies can restrict broad storage access and package visibility, so publication eligibility and permission flows must be reviewed for the intended distribution channel.
+### Other tools
+- **Trash:** restore deleted items to a folder, delete permanently, or empty Trash.
+- **App manager:** search installed apps, open Android app information, and request uninstall for eligible user apps.
+- **Security review:** locally review suspicious file types and misleading double extensions.
+- **Safe Folder:** a PIN-protected vault encrypting file contents and the index locally with AES-GCM.
+- Portuguese and English interface strings.
 
-FilePilot's file scanning and SHA-256 duplicate checks run locally. The current project does not require a FilePilot account or upload scanned file contents to a server. The operating system's own security tools should remain enabled.
+## Permissions and privacy
 
-## Trash and Safe Folder limitations
+On Android 13 and later, FilePilot declares media permissions for images, videos, and audio. Access to the wider shared-storage area can require Android's **Manage all files** special access. A user can instead choose a folder through Android's Storage Access Framework; access is then limited by the selected folder and document provider.
 
-- **FilePilot Trash is an app-private recovery area**, not a system-wide recycle bin. Its contents can be permanently removed when the user empties Trash, clears FilePilot's app data, or uninstalls the app. Keep a backup of important data.
-- The Safe Folder derives an AES-256 key from the PIN using PBKDF2-HMAC-SHA256 and encrypts files and the item index using AES-GCM.
-- If the Safe Folder PIN is forgotten, its encrypted contents cannot be recovered. Clearing app data or uninstalling may permanently delete the vault.
-- The current implementation should be tested on physical devices and different Android document providers before general release.
+The app manager declares installed-package visibility for its core app-management screen. Permission and package-visibility requirements vary by Android version and distribution policy; review them before submitting to an app store.
 
-## Build and download on Android
+File browsing and SHA-256 duplicate checks run locally. The current project does not require a FilePilot account or upload scanned file contents to a server.
 
-GitHub Actions runs unit tests and builds a debug APK whenever `main` changes. Open the repository's **Actions** tab, select the newest successful **Android build** run, and download the `FilePilot-debug-apk` artifact. Extract the ZIP on your phone before installing the APK.
+## Important limitations
 
-The beta release workflow also builds and verifies a release-variant APK, then attaches the APK to a GitHub pre-release. The APK is signed with the Android debug signing key for beta sideload testing; it is **not** a production-store signing build.
+- FilePilot's Trash is an app-private recovery area, not a system-wide recycle bin. Emptying Trash, clearing FilePilot's app data, or uninstalling it may permanently remove Trash contents.
+- The Safe Folder is encrypted on the device; forgetting the PIN may make its contents unrecoverable. Clearing app data or uninstalling may delete the vault.
+- **Security review is not a full antivirus.** It does not use a malware-signature database and cannot certify a file as safe. Keep Android/Google Play Protect enabled.
+- Cleaning suggestions do not clear private caches belonging to other apps. Android controls those areas.
+- Category scans are bounded and may not cover every folder on a very large device.
+- Provider-specific file operations depend on the permissions and capabilities of the selected document provider.
+- Google Files-inspired UX patterns are used as a reference; FilePilot uses its own name, colors, and implementation rather than Google's branding or source code.
 
-## Known limitations before a public launch
+## Build and release on Android
 
-- File operations with Storage Access Framework providers depend on the permissions and capabilities offered by each provider.
-- Large scans are intentionally bounded and may not review every folder on a very large device.
-- Security review is heuristic and does not use a malware signature database or provide antivirus protection.
-- Storage cleaning requires the user to inspect candidates; the app does not clear other apps' private caches.
-- Whole-folder copy/move support is not universal across all provider types yet.
-- Device testing, permission-policy review, privacy-policy publication, and a private production signing key are required before a production store launch.
+GitHub Actions runs unit tests and builds a debug APK on pushes to `main`. Open the repository's **Actions** tab, choose the newest successful **Android build** run, and download the `FilePilot-debug-apk` artifact. Extract the ZIP on your phone before installing.
+
+The beta release workflow builds a release-variant APK, verifies its signature and package metadata, and publishes it to GitHub Releases. Beta APKs use the Android debug signing key for sideload testing; they are **not production-store signing builds**.
+
+Before public release, test file operations and the Safe Folder on physical Android devices, publish an accurate privacy policy, review permission and store policies, and configure a private production signing key.
