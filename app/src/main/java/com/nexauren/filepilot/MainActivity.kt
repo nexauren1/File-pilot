@@ -891,8 +891,11 @@ private fun categoryLabel(category: FileCategory): String = when (category) {
 
 private fun displayLocationName(context: android.content.Context, location: String): String {
     return if (location.startsWith("content://")) {
-        runCatching { DocumentFile.fromTreeUri(context, Uri.parse(location))?.name }
-            .getOrNull() ?: context.getString(R.string.browse_title)
+        runCatching {
+            val uri = Uri.parse(location)
+            if (uri.pathSegments.contains("document")) DocumentFile.fromSingleUri(context, uri)?.name
+            else DocumentFile.fromTreeUri(context, uri)?.name
+        }.getOrNull() ?: context.getString(R.string.browse_title)
     } else {
         File(location).name.ifBlank { context.getString(R.string.storage_title) }
     }
