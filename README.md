@@ -1,29 +1,34 @@
 # FilePilot
 
-A lightweight Android file manager built with Kotlin and Jetpack Compose.
+FilePilot is a minimalist Android file manager with a familiar, category-first browsing experience and its own violet visual identity.
 
-## Current MVP scope
+## Current MVP
 
-- Minimal, responsive home screen
-- Browse files in shared storage when access is granted
-- Alternative folder access using Android's Storage Access Framework
-- Search and filter the current folder
-- Open, share, rename, and delete files
-- Basic category filtering
-- GitHub Actions workflow to compile a debug APK and run unit tests
+- Home screen with storage usage and quick-access categories.
+- Browse shared storage when Android grants broad access, with Storage Access Framework folder selection as a fallback.
+- Categories for images, videos, audio, documents, archives, APKs, Downloads, and other files.
+- Search and filter within the current folder.
+- Open, share, rename, and delete individual files.
+- Move individual files into the Safe Folder.
+- Safe Folder protected by a user PIN, with file contents and its index encrypted locally using AES-GCM.
+- Restore an encrypted item to a location selected by the user, or permanently delete it from the vault.
+- English and Portuguese strings.
+- GitHub Actions workflow that runs unit tests, builds a debug APK, and uploads it as an artifact.
 
-## Build
+## Build without a computer
 
-The project uses Android Gradle Plugin 8.13.2, Kotlin 2.2.10, Gradle 8.13, and Android SDK 36.
+Pushes to `main` trigger the GitHub Actions workflow. Open the repository's **Actions** tab, choose the latest completed **Android build** run, and download the `FilePilot-debug-apk` artifact when the build succeeds.
 
-Open the repository's Actions tab, choose the latest workflow run, and download the FilePilot-debug-apk artifact if the run succeeds.
+The APK is for testing. A signed release AAB/APK and device testing are still required before distribution.
 
-## Permissions and privacy
+## Safe Folder and privacy
 
-FilePilot is designed to work locally. This MVP does not upload file names, contents, or folder paths and does not yet include an advertising SDK.
+The Safe Folder derives an AES-256 key from the PIN using PBKDF2-HMAC-SHA256 and encrypts vault files and the item index with AES-GCM. File contents remain in app-private storage unless the user explicitly restores or shares a file.
 
-The app requests broad file access only for its core file-manager functionality. If access is not granted, a user can choose a folder through Android's Storage Access Framework. Google Play eligibility for MANAGE_EXTERNAL_STORAGE must be reviewed before publication.
+**Important:** if the user forgets their Safe Folder PIN, the encrypted items cannot be recovered. Uninstalling or clearing app data may permanently delete the vault. The MVP does not yet include a recovery mechanism, automatic background locking, or a secure backup.
 
-## Project status
+FilePilot does not currently include an advertising SDK and does not require a server for core file operations. Before publication, privacy documentation, broad-storage permission eligibility, Google Play declarations, ad consent, and release signing must be reviewed.
 
-This is an initial development build, not a production release. Device testing, accessibility checks, privacy documentation, store policy review, advertising integration, and release signing must be completed before publication.
+## Development status
+
+This is an early development build. The GitHub Actions result must be successful and the app must be manually tested on Android devices before calling the MVP ready.
