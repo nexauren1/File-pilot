@@ -5,7 +5,10 @@ enum class FileCategory {
 
     // Folders remain visible while filtering so users can navigate into subdirectories.
     fun matches(fileName: String, isDirectory: Boolean, location: String? = null): Boolean {
-        if (this == ALL || isDirectory) return true
+        // Typed categories are collections of files, never navigation shortcuts to folders.
+        // Only ALL exposes directories; folder navigation lives in the Storage view.
+        if (this == ALL) return true
+        if (isDirectory) return false
         if (this == DOWNLOADS) {
             val path = location.orEmpty().replace('\\', '/').lowercase()
             return path.contains("/download/") ||
