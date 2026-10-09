@@ -78,9 +78,12 @@ import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
 
-private val FeaturePurple = Color(0xFF6D4AE8)
-private val FeatureMuted = Color(0xFF6B6680)
-private val FeatureSoft = Color(0xFFEFEAFF)
+private val FeaturePurple = Color(0xFF5746D8)
+private val FeatureMuted = Color(0xFF656579)
+private val FeatureSoft = Color(0xFFEAE7FF)
+private val FeatureMint = Color(0xFFE0F4EF)
+private val FeaturePeach = Color(0xFFFFE9DD)
+private val FeatureBlue = Color(0xFFE3EDFF)
 
 data class TrashItem(
     val id: String,
@@ -537,44 +540,177 @@ fun CleanerScreen(modifier: Modifier, rootLocation: String?, onRequestAccess: ()
     val scope = rememberCoroutineScope()
     var report by remember { mutableStateOf<StorageReport?>(null) }
     var scanning by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.cleaner_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.cleaner_description), color = FeatureMuted)
-        Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.cleaner_safe_note), color = FeatureMuted, style = MaterialTheme.typography.bodySmall)
-                Button(onClick = {
-                    if (rootLocation == null) onRequestAccess()
-                    else scope.launch {
-                        scanning = true
-                        report = withContext(Dispatchers.IO) { StorageAnalyzer.scan(context, rootLocation) }
-                        scanning = false
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF29264D)),
+        ) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(52.dp).clip(RoundedCornerShape(17.dp)).background(Color(0xFF514A89)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.DeleteSweep, contentDescription = null, tint = Color.White, modifier = Modifier.size(29.dp))
                     }
-                }, enabled = !scanning, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(if (scanning) R.string.scan_in_progress else R.string.cleaner_scan))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(stringResource(R.string.cleaner_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(stringResource(R.string.cleaner_description), color = Color(0xFFD6D2F1), style = MaterialTheme.typography.bodySmall)
+                    }
                 }
-                if (report != null) {
-                    Text(stringResource(R.string.scan_summary, report!!.filesScanned), fontWeight = FontWeight.SemiBold)
-                    if (report!!.truncated) Text(stringResource(R.string.scan_limit_note), color = FeatureMuted, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.cleaner_safe_note), color = Color(0xFFE3E0F8), style = MaterialTheme.typography.bodySmall)
+                Button(
+                    onClick = {
+                        if (rootLocation == null) onRequestAccess()
+                        else scope.launch {
+                            scanning = true
+                            report = withContext(Dispatchers.IO) { StorageAnalyzer.scan(context, rootLocation) }
+                            scanning = false
+                        }
+                    },
+                    enabled = !scanning,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(if (scanning) R.string.scan_in_progress else R.string.cleaner_scan))
                 }
             }
         }
+
         val snapshot = report
-        if (snapshot != null) {
-            FeatureSectionTitle(R.string.large_files_title, snapshot.largeFiles.size)
-            if (snapshot.largeFiles.isEmpty()) Text(stringResource(R.string.no_candidates), color = FeatureMuted)
-            snapshot.largeFiles.forEach { entry -> ReviewFileRow(entry, R.string.cleaner_large_file_hint, onMoveToTrash) }
-            Divider()
-            FeatureSectionTitle(R.string.installers_title, snapshot.installers.size)
-            if (snapshot.installers.isEmpty()) Text(stringResource(R.string.no_candidates), color = FeatureMuted)
-            snapshot.installers.forEach { entry -> ReviewFileRow(entry, R.string.cleaner_installer_hint, onMoveToTrash) }
-            Divider()
-            FeatureSectionTitle(R.string.duplicates_title, snapshot.duplicateGroups.sumOf { it.size })
-            if (snapshot.duplicateGroups.isEmpty()) Text(stringResource(R.string.no_candidates), color = FeatureMuted)
-            snapshot.duplicateGroups.forEachIndexed { index, group ->
-                Text(stringResource(R.string.duplicate_group_label, index + 1, group.size), fontWeight = FontWeight.Medium)
-                group.forEach { entry -> ReviewFileRow(entry, R.string.duplicate_exact_match, onMoveToTrash) }
+        if (snapshot == null) {
+            Text(stringResource(R.string.cleaner_recommendations_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CleanerSuggestionCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.Storage,
+                    titleRes = R.string.large_files_title,
+                    bodyRes = R.string.cleaner_large_preview,
+                    tint = FeatureBlue,
+                    accent = Color(0xFF315FB8),
+                )
+                CleanerSuggestionCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.DeleteSweep,
+                    titleRes = R.string.duplicates_title,
+                    bodyRes = R.string.cleaner_duplicates_preview,
+                    tint = FeatureMint,
+                    accent = Color(0xFF16816D),
+                )
             }
+            CleanerSuggestionCard(
+                modifier = Modifier.fillMaxWidth(),
+                icon = Icons.Outlined.Apps,
+                titleRes = R.string.installers_title,
+                bodyRes = R.string.cleaner_installer_preview,
+                tint = FeaturePeach,
+                accent = Color(0xFFB45C18),
+            )
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(FeatureSoft), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Shield, contentDescription = null, tint = FeaturePurple)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(stringResource(R.string.cleaner_manual_title), fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.cleaner_manual_body), color = FeatureMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        } else {
+            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.cleaner_results_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.scan_summary, snapshot.filesScanned), color = FeatureMuted)
+                    if (snapshot.truncated) Text(stringResource(R.string.scan_limit_note), color = FeatureMuted, style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ScanMetricCard(Modifier.weight(1f), snapshot.largeFiles.size.toString(), R.string.large_files_short, FeatureBlue, Color(0xFF315FB8))
+                        ScanMetricCard(Modifier.weight(1f), snapshot.duplicateGroups.size.toString(), R.string.duplicates_short, FeatureMint, Color(0xFF16816D))
+                        ScanMetricCard(Modifier.weight(1f), snapshot.installers.size.toString(), R.string.installers_short, FeaturePeach, Color(0xFFB45C18))
+                    }
+                    TextButton(onClick = {
+                        report = null
+                    }, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.cleaner_scan_again)) }
+                }
+            }
+
+            RecommendationSection(
+                titleRes = R.string.large_files_title,
+                count = snapshot.largeFiles.size,
+                captionRes = R.string.cleaner_large_file_hint,
+                emptyRes = R.string.no_candidates,
+            ) {
+                snapshot.largeFiles.forEach { entry -> ReviewFileRow(entry, R.string.cleaner_large_file_hint, onMoveToTrash) }
+            }
+            RecommendationSection(
+                titleRes = R.string.duplicates_title,
+                count = snapshot.duplicateGroups.sumOf { (it.size - 1).coerceAtLeast(0) },
+                captionRes = R.string.duplicate_exact_match,
+                emptyRes = R.string.no_candidates,
+            ) {
+                snapshot.duplicateGroups.forEachIndexed { index, group ->
+                    Text(stringResource(R.string.duplicate_group_label, index + 1, group.size), fontWeight = FontWeight.SemiBold, color = FeatureMuted, modifier = Modifier.padding(top = 6.dp))
+                    // Keep one copy from each exact-match group; only offer the additional copies for review.
+                    group.drop(1).forEach { entry -> ReviewFileRow(entry, R.string.duplicate_exact_match, onMoveToTrash) }
+                }
+            }
+            RecommendationSection(
+                titleRes = R.string.installers_title,
+                count = snapshot.installers.size,
+                captionRes = R.string.cleaner_installer_hint,
+                emptyRes = R.string.no_candidates,
+            ) {
+                snapshot.installers.forEach { entry -> ReviewFileRow(entry, R.string.cleaner_installer_hint, onMoveToTrash) }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+    }
+}
+
+@Composable
+private fun CleanerSuggestionCard(
+    modifier: Modifier,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    titleRes: Int,
+    bodyRes: Int,
+    tint: Color,
+    accent: Color,
+) {
+    Card(modifier = modifier, shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = tint)) {
+        Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(43.dp).clip(RoundedCornerShape(14.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(23.dp))
+            }
+            Text(stringResource(titleRes), fontWeight = FontWeight.Bold, color = Color(0xFF232238))
+            Text(stringResource(bodyRes), color = Color(0xFF5F5E73), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun ScanMetricCard(modifier: Modifier, count: String, titleRes: Int, tint: Color, accent: Color) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(tint).padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(count, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = accent)
+        Text(stringResource(titleRes), color = Color(0xFF34344A), style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun RecommendationSection(
+    titleRes: Int,
+    count: Int,
+    captionRes: Int,
+    emptyRes: Int,
+    content: @Composable () -> Unit,
+) {
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(titleRes), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(count.toString(), color = FeatureMuted)
+            }
+            if (count == 0) {
+                Text(stringResource(emptyRes), color = FeatureMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 12.dp))
+            } else content()
         }
     }
 }
@@ -698,15 +834,21 @@ private fun FeatureSectionTitle(titleRes: Int, count: Int) {
 
 @Composable
 private fun ReviewFileRow(entry: FileEntry, hintRes: Int, onMoveToTrash: (FileEntry) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.Folder, contentDescription = null, tint = FeaturePurple)
-        Column(Modifier.weight(1f).padding(start = 10.dp, end = 6.dp)) {
-            Text(entry.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(formatFeatureBytes(entry.sizeBytes) + " · " + stringResource(hintRes), color = FeatureMuted, style = MaterialTheme.typography.bodySmall)
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(FeatureSoft), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Folder, contentDescription = null, tint = FeaturePurple)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(entry.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFF25243B))
+            Text(formatFeatureBytes(entry.sizeBytes) + " · " + stringResource(hintRes), color = FeatureMuted, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         TextButton(onClick = { onMoveToTrash(entry) }) { Text(stringResource(R.string.send_to_trash)) }
     }
-    Divider(color = Color(0xFFF0F2F6), thickness = 0.7.dp)
+    Divider(color = Color(0xFFF0EFF7), thickness = 0.8.dp)
 }
 
 @Composable
