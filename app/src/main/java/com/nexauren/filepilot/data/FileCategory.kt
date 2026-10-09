@@ -1,12 +1,19 @@
 package com.nexauren.filepilot.data
 
 enum class FileCategory {
-    ALL, IMAGES, VIDEOS, AUDIO, DOCUMENTS, ARCHIVES, APKS, OTHER;
+    ALL, IMAGES, VIDEOS, AUDIO, DOCUMENTS, ARCHIVES, APKS, DOWNLOADS, OTHER;
 
-    // Keep folders visible while a type filter is active so users can drill
-    // down into DCIM, Pictures, Music, Documents, and other subdirectories.
-    fun matches(fileName: String, isDirectory: Boolean): Boolean {
+    // Folders remain visible while filtering so users can navigate into subdirectories.
+    fun matches(fileName: String, isDirectory: Boolean, location: String? = null): Boolean {
         if (this == ALL || isDirectory) return true
+        if (this == DOWNLOADS) {
+            val path = location.orEmpty().replace('\\', '/').lowercase()
+            return path.contains("/download/") ||
+                path.endsWith("/download") ||
+                path.contains("/downloads/") ||
+                path.endsWith("/downloads") ||
+                (path.startsWith("content://") && path.contains("download"))
+        }
         return fromFileName(fileName) == this
     }
 
