@@ -500,7 +500,7 @@ private fun FilePilotApp() {
                         Column {
                             Text(
                                 when (tab) {
-                                    AppTab.HOME -> stringResource(R.string.tab_browse)
+                                    AppTab.HOME -> stringResource(R.string.home_title)
                                     AppTab.BROWSE -> if (filter == FileCategory.ALL) {
                                         currentLocation?.let { displayLocationName(context, it) } ?: stringResource(R.string.browse_title)
                                     } else categoryLabel(filter)
@@ -893,10 +893,18 @@ private fun FilePilotApp() {
                     }
                 }
                 Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.labelLarge, color = SecondaryText, modifier = Modifier.padding(top = 4.dp, bottom = 3.dp))
-                MenuNavigationRow(stringResource(R.string.tab_browse), Icons.Outlined.Folder, selected = tab == AppTab.HOME || tab == AppTab.BROWSE) {
+                MenuNavigationRow(stringResource(R.string.home_title), Icons.Outlined.Home, selected = tab == AppTab.HOME) {
                     mainMenuExpanded = false
                     tabName = AppTab.HOME.name
                     filterName = FileCategory.ALL.name
+                    query = ""
+                }
+                MenuNavigationRow(stringResource(R.string.storage_title), Icons.Outlined.Storage, selected = tab == AppTab.BROWSE && filter == FileCategory.ALL) {
+                    mainMenuExpanded = false
+                    tabName = AppTab.BROWSE.name
+                    filterName = FileCategory.ALL.name
+                    stack.clear()
+                    rootLocation?.let { stack.add(it) }
                     query = ""
                 }
                 MenuNavigationRow(stringResource(R.string.tab_clean), Icons.Outlined.CleaningServices, selected = tab == AppTab.CLEAN || tab == AppTab.CLEANER) {
