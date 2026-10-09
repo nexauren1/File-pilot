@@ -18,6 +18,23 @@ import java.io.InputStream
 object FileRepository {
     private const val PREFS = "filepilot_local"
     private const val KEY_TREE_URI = "selected_tree_uri"
+    private const val RECURSIVE_CACHE_TTL_MS = 20_000L
+
+    private data class RecursiveCache(
+        val rootLocation: String,
+        val maxDepth: Int,
+        val maxFiles: Int,
+        val createdAt: Long,
+        val entries: List<FileEntry>,
+    )
+
+    @Volatile
+    private var recursiveCache: RecursiveCache? = null
+
+    /** Clear the short-lived file index after an operation changes storage. */
+    fun invalidateCache() {
+        recursiveCache = null
+    }
 
     fun hasStorageAccess(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -71,6 +88,18 @@ object FileRepository {
         maxFiles: Int = 2500,
         maxDepth: Int = 8,
     ): List<FileEntry> {
+        val now = System.currentTimeMillis()
+        val cached = recursiveCache
+        if (
+            cached != null &&
+            cached.rootLocation == rootLocation &&
+            cached.maxDepth == maxDepth &&
+            cached.maxFiles >= maxFiles &&
+            now - cached.createdAt < RECURSIVE_CACHE_TTL_MS
+        ) {
+            return cached.entries.take(maxFiles)
+        }
+
         val queue = ArrayDeque<Pair<String, Int>>()
         val visitedDirectories = HashSet<String>()
         val files = mutableListOf<FileEntry>()
@@ -92,7 +121,9 @@ object FileRepository {
                 }
             }
         }
-        return files.sortedWith(compareBy<FileEntry> { it.name.lowercase() }.thenBy { it.location })
+        val sorted = files.sortedWith(compareBy<FileEntry> { it.name.lowercase() }.thenBy { it.location })
+        recursiveCache = RecursiveCache(rootLocation, maxDepth, maxFiles, System.currentTimeMillis(), sorted)
+        return sorted
     }
 
     fun rename(context: Context, entry: FileEntry, newName: String): Result<Unit> = runCatching {
@@ -107,6 +138,7 @@ object FileRepository {
             old.renameTo(File(parent, newName))
         }
         check(ok) { "Rename was rejected." }
+        invalidateCache()
     }
 
     fun delete(context: Context, entry: FileEntry): Result<Unit> = runCatching {
@@ -117,6 +149,7 @@ object FileRepository {
             if (file.isDirectory) file.deleteRecursively() else file.delete()
         }
         check(ok) { "Delete was rejected." }
+        invalidateCache()
     }
 
     fun shareUri(context: Context, entry: FileEntry): Uri =
@@ -208,6 +241,7 @@ object FileRepository {
             File(parent, name).mkdir()
         }
         check(created) { "Folder could not be created." }
+        invalidateCache()
     }
 
     fun copyToTree(context: Context, entry: FileEntry, destinationTreeUri: Uri): Result<Unit> = runCatching {
@@ -226,6 +260,7 @@ object FileRepository {
                 output.use { sink -> source.copyTo(sink, 32 * 1024) }
                 Unit
             }
+            invalidateCache()
         } catch (error: Throwable) {
             target.delete()
             throw error

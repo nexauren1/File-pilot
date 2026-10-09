@@ -361,6 +361,7 @@ private fun FilePilotApp() {
                 } finally {
                     processing = false
                 }
+                FileRepository.invalidateCache()
                 snackbarHostState.showSnackbar(
                     context.getString(if (result.isSuccess) R.string.trash_restore_success else R.string.trash_operation_error)
                 )
@@ -407,7 +408,8 @@ private fun FilePilotApp() {
         }
     }
 
-    LaunchedEffect(rootLocation, currentLocation, filterName, query, reload, tabName) {
+    // Typing in search filters the already loaded list; it must never start another disk scan.
+    LaunchedEffect(rootLocation, currentLocation, filterName, reload, tabName) {
         if (tab == AppTab.BROWSE) {
             val collectionMode = filter != FileCategory.ALL
             val listRoot = if (collectionMode) rootLocation else currentLocation
@@ -417,21 +419,24 @@ private fun FilePilotApp() {
                     if (collectionMode) FileRepository.listFilesRecursively(context, listRoot)
                     else FileRepository.listChildren(context, listRoot)
                 }
-                val filtered = loaded.filter { entry ->
-                    val typeMatches = if (collectionMode) {
+                entries = if (collectionMode) {
+                    loaded.filter { entry ->
                         !entry.isDirectory && filter.matches(entry.name, entry.isDirectory, entry.location)
-                    } else {
-                        filter.matches(entry.name, entry.isDirectory, entry.location)
-                    }
-                    typeMatches && entry.name.contains(query.trim(), ignoreCase = true)
+                    }.sortedByDescending { it.modifiedAt }
+                } else {
+                    loaded.filter { entry -> filter.matches(entry.name, entry.isDirectory, entry.location) }
                 }
-                entries = if (collectionMode) filtered.sortedByDescending { it.modifiedAt } else filtered
                 loading = false
             } else {
                 entries = emptyList()
                 loading = false
             }
         }
+    }
+
+    val visibleEntries = remember(entries, query) {
+        val needle = query.trim()
+        if (needle.isEmpty()) entries else entries.filter { it.name.contains(needle, ignoreCase = true) }
     }
 
     fun runFileOperation(successText: String, operation: suspend () -> Result<Unit>) {
@@ -457,6 +462,7 @@ private fun FilePilotApp() {
             } finally {
                 processing = false
             }
+            FileRepository.invalidateCache()
             snackbarHostState.showSnackbar(
                 context.getString(if (result.isSuccess) R.string.trash_success else R.string.trash_operation_error)
             )
@@ -767,7 +773,7 @@ private fun FilePilotApp() {
                 } else {
                     FileListScreen(
                         modifier = Modifier.padding(padding),
-                        entries = entries,
+                        entries = visibleEntries,
                         loading = loading,
                         onOpen = ::openEntry,
                         onRename = { entry -> renameTarget = entry; renameText = entry.name },
