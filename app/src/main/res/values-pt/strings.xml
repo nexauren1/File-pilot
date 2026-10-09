@@ -35,7 +35,7 @@
     <string name="settings_full_access">Acesso para gerir todos os ficheiros</string>
     <string name="settings_folder">Escolher ou mudar de pasta</string>
     <string name="settings_about">Sobre o FilePilot</string>
-    <string name="settings_version">Versão 0.4.0 · Beta para testes</string>
+    <string name="settings_version">Versão 0.5.0 · Beta para testes</string>
     <string name="tab_home">Início</string>
     <string name="tab_browse">Ficheiros</string>
     <string name="tab_settings">Definições</string>
@@ -201,5 +201,27 @@
     <string name="large_files_short">Ficheiros grandes</string>
     <string name="duplicates_short">Duplicados</string>
     <string name="installers_short">Instaladores</string>
+
+
+    <string name="category_apps">Aplicações</string>
+    <string name="category_size_summary">%1$d ficheiros · %2$s</string>
+    <string name="apps_count">%1$d aplicações instaladas</string>
+    <string name="menu_section_navigation">Navegação</string>
+    <string name="menu_section_collections">Coleções</string>
+    <string name="menu_section_tools">Ferramentas e definições</string>
+    <string name="viewer_open_with">Abrir com outra aplicação</string>
+    <string name="viewer_unsupported">O FilePilot não tem um leitor integrado para este formato. Escolhe uma aplicação Android compatível para o abrir.</string>
+    <string name="viewer_pdf_loading">A carregar páginas do PDF…</string>
+    <string name="viewer_pdf_error">Não foi possível apresentar este PDF. O ficheiro pode estar danificado ou protegido.</string>
+    <string name="viewer_image_error">Não foi possível apresentar esta imagem.</string>
+    <string name="viewer_audio_loading">A preparar o áudio…</string>
+    <string name="viewer_audio_error">Este formato de áudio não pode ser reproduzido neste dispositivo.</string>
+    <string name="viewer_play">Reproduzir</string>
+    <string name="viewer_pause">Pausar</string>
+    <string name="viewer_video_loading">A carregar vídeo…</string>
+    <string name="viewer_text_loading">A carregar texto…</string>
+    <string name="viewer_text_error">Não foi possível abrir este ficheiro de texto.</string>
+    <string name="viewer_text_truncated">É apresentado apenas o primeiro 1 MB.</string>
+    <string name="apps_open">Abrir</string>
 
 </resources>
