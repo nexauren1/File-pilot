@@ -20,6 +20,12 @@ class FileCategoryTest {
         assertEquals(FileCategory.OTHER, FileCategory.fromFileName("Pictures", true))
     }
 
+    @Test fun downloadsCategoryUsesLocationPath() {
+        assertTrue(FileCategory.DOWNLOADS.matches("report.pdf", false, "/storage/emulated/0/Download/report.pdf"))
+        assertTrue(FileCategory.DOWNLOADS.matches("photo.jpg", false, "content://provider/tree/primary%3ADownload/document/primary%3ADownload%2Fphoto.jpg"))
+        org.junit.Assert.assertFalse(FileCategory.DOWNLOADS.matches("report.pdf", false, "/storage/emulated/0/Documents/report.pdf"))
+    }
+
     @Test fun unknownExtensionsAreOther() {
         assertEquals(FileCategory.OTHER, FileCategory.fromFileName("data.custom"))
         assertEquals(FileCategory.OTHER, FileCategory.fromFileName("README"))
