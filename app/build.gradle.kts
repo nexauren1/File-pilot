@@ -10,8 +10,8 @@ android {
         applicationId = "com.nexauren.filepilot"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -41,6 +41,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.12.0")
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
