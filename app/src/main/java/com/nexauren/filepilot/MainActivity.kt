@@ -190,6 +190,7 @@ private fun FilePilotApp() {
     var trashEntries by remember { mutableStateOf<List<TrashItem>>(emptyList()) }
     var trashRestorePendingId by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var processing by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<FileEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<FileEntry?>(null) }
     var vaultPendingMove by remember { mutableStateOf<FileEntry?>(null) }
@@ -387,7 +388,7 @@ private fun FilePilotApp() {
                 }
                 val filtered = loaded.filter { entry ->
                     val typeMatches = if (collectionMode) {
-                        !entry.isDirectory && filter.matches(entry.name, false, entry.location)
+                        !entry.isDirectory && filter.matches(entry.name, entry.isDirectory, entry.location)
                     } else {
                         filter.matches(entry.name, entry.isDirectory, entry.location)
                     }
@@ -404,26 +405,38 @@ private fun FilePilotApp() {
 
     fun runFileOperation(successText: String, operation: suspend () -> Result<Unit>) {
         scope.launch {
-            val result = withContext(Dispatchers.IO) { operation() }
-            snackbarHostState.showSnackbar(
-                if (result.isSuccess) successText else context.getString(R.string.error_operation)
-            )
-            reload++
+            processing = true
+            try {
+                val result = withContext(Dispatchers.IO) { operation() }
+                snackbarHostState.showSnackbar(
+                    if (result.isSuccess) successText else context.getString(R.string.error_operation)
+                )
+                reload++
+            } finally {
+                processing = false
+            }
         }
     }
 
     fun moveToTrash(entry: FileEntry) {
         scope.launch {
-            val result = withContext(Dispatchers.IO) { TrashRepository.moveToTrash(context, entry) }
-            snackbarHostState.showSnackbar(
-                context.getString(if (result.isSuccess) R.string.trash_success else R.string.trash_operation_error)
-            )
-            reload++
+            processing = true
+            try {
+                val result = withContext(Dispatchers.IO) { TrashRepository.moveToTrash(context, entry) }
+                snackbarHostState.showSnackbar(
+                    context.getString(if (result.isSuccess) R.string.trash_success else R.string.trash_operation_error)
+                )
+                reload++
+            } finally {
+                processing = false
+            }
         }
     }
 
     fun openEntry(entry: FileEntry) {
         if (entry.isDirectory) {
+            // Category collections are strictly file-only; folder browsing is reserved for ALL files.
+            if (filter != FileCategory.ALL) return
             stack.add(entry.location)
             filterName = FileCategory.ALL.name
             query = ""
