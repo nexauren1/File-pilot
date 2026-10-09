@@ -361,6 +361,7 @@ private fun FilePilotApp() {
                 } finally {
                     processing = false
                 }
+                FileRepository.invalidateCache()
                 snackbarHostState.showSnackbar(
                     context.getString(if (result.isSuccess) R.string.trash_restore_success else R.string.trash_operation_error)
                 )
@@ -413,7 +414,7 @@ private fun FilePilotApp() {
             val collectionMode = filter != FileCategory.ALL
             val listRoot = if (collectionMode) rootLocation else currentLocation
             if (listRoot != null) {
-                loading = entries.isEmpty()
+                loading = true
                 val loaded = withContext(Dispatchers.IO) {
                     if (collectionMode) FileRepository.listFilesRecursively(context, listRoot)
                     else FileRepository.listChildren(context, listRoot)
@@ -461,6 +462,7 @@ private fun FilePilotApp() {
             } finally {
                 processing = false
             }
+            FileRepository.invalidateCache()
             snackbarHostState.showSnackbar(
                 context.getString(if (result.isSuccess) R.string.trash_success else R.string.trash_operation_error)
             )
