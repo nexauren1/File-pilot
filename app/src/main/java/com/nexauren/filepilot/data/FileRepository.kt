@@ -64,7 +64,8 @@ object FileRepository {
         require(newName.isNotBlank() && newName == newName.trim()) { "Invalid name." }
         require(!newName.contains('/') && !newName.contains('\\')) { "Invalid characters." }
         val ok = if (entry.location.startsWith("content://")) {
-            documentFromUri(context, Uri.parse(entry.location))?.renameTo(newName) == true
+            val uri = Uri.parse(entry.location)
+            DocumentsContract.renameDocument(context.contentResolver, uri, newName) != null
         } else {
             val old = File(entry.location)
             val parent = old.parentFile ?: error("Folder unavailable.")
@@ -75,7 +76,7 @@ object FileRepository {
 
     fun delete(context: Context, entry: FileEntry): Result<Unit> = runCatching {
         val ok = if (entry.location.startsWith("content://")) {
-            documentFromUri(context, Uri.parse(entry.location))?.delete() == true
+            DocumentsContract.deleteDocument(context.contentResolver, Uri.parse(entry.location))
         } else {
             val file = File(entry.location)
             if (file.isDirectory) file.deleteRecursively() else file.delete()
@@ -154,7 +155,18 @@ object FileRepository {
         require(name.isNotBlank() && name == name.trim()) { "Invalid folder name." }
         require(!name.contains('/') && !name.contains('\\')) { "Invalid characters." }
         val created = if (location.startsWith("content://")) {
-            documentFromUri(context, Uri.parse(location))?.createDirectory(name) != null
+            val parentUri = Uri.parse(location)
+            val parentDocumentUri = if (parentUri.pathSegments.contains("document")) {
+                DocumentsContract.buildDocumentUriUsingTree(parentUri, DocumentsContract.getDocumentId(parentUri))
+            } else {
+                parentUri
+            }
+            DocumentsContract.createDocument(
+                context.contentResolver,
+                parentDocumentUri,
+                DocumentsContract.Document.MIME_TYPE_DIR,
+                name,
+            ) != null
         } else {
             val parent = File(location)
             require(parent.isDirectory && parent.canWrite()) { "Folder is not writable." }
