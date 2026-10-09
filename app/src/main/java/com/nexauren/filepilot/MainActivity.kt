@@ -79,6 +79,7 @@ import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -1044,6 +1045,58 @@ private fun FilePilotApp() {
 }
 
 @Composable
+private fun HomeHero(onBrowse: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF30247F)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 18.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.home_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                )
+                Text(
+                    stringResource(R.string.home_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFFDAD5FF),
+                )
+                Button(
+                    onClick = onBrowse,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF30247F),
+                    ),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp),
+                ) {
+                    Text(stringResource(R.string.category_all), fontWeight = FontWeight.Bold)
+                    Icon(Icons.Outlined.ChevronRight, contentDescription = null, modifier = Modifier.padding(start = 3.dp).size(17.dp))
+                }
+            }
+            Box(
+                Modifier.size(106.dp).clip(RoundedCornerShape(26.dp)).background(Color(0xFF45399B)),
+                contentAlignment = Alignment.Center,
+            ) {
+                FilePilotIllustration(
+                    category = FileCategory.DOCUMENTS,
+                    modifier = Modifier.size(100.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun HomeScreen(
     modifier: Modifier,
     hasAccess: Boolean,
@@ -1064,6 +1117,7 @@ private fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Spacer(Modifier.height(4.dp))
+        HomeHero(onBrowse = onOpenFiles)
         StorageCard(hasAccess = hasAccess, hasLocation = hasLocation)
         if (!hasLocation) PermissionCard(onRequestAccess, onChooseFolder)
 
