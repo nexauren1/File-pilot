@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
+import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -56,7 +57,6 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,7 +72,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.AspectRatioFrameLayout
 import com.nexauren.filepilot.data.FileCategory
@@ -229,12 +228,17 @@ private fun PdfPageCard(renderer: PdfRenderer, pageIndex: Int) {
 private fun renderPdfPage(renderer: PdfRenderer, pageIndex: Int, maxWidth: Int): Bitmap {
     val page = renderer.openPage(pageIndex)
     return try {
-        val ratio = maxWidth.toFloat() / page.width.coerceAtLeast(1)
+        // Bound the bitmap on both axes, and scale the page to the same ratio so it is not clipped.
+        val ratio = minOf(
+            maxWidth.toFloat() / page.width.coerceAtLeast(1),
+            2200f / page.height.coerceAtLeast(1),
+        )
         val targetWidth = (page.width * ratio).toInt().coerceIn(1, maxWidth)
-        val targetHeight = (page.height * ratio).toInt().coerceIn(1, 2400)
+        val targetHeight = (page.height * ratio).toInt().coerceIn(1, 2200)
+        val transform = Matrix().apply { setScale(ratio, ratio) }
         Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
             bitmap.eraseColor(AndroidColor.WHITE)
-            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            page.render(bitmap, null, transform, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         }
     } finally {
         page.close()
