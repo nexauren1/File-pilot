@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
@@ -171,7 +172,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppTab { HOME, BROWSE, CLEAN, SHARE, RECENTS, FAVORITES, SAFE, TOOLS, TRASH, CLEANER, APPS, SECURITY, SETTINGS }
+private enum class AppTab { HOME, BROWSE, READER, CLEAN, SHARE, RECENTS, FAVORITES, SAFE, TOOLS, TRASH, CLEANER, APPS, SECURITY, SETTINGS }
+
+private data class CategorySummary(val count: Int, val bytes: Long)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -179,6 +182,7 @@ private fun FilePilotApp() {
     val context = LocalContext.current
     val stack = remember { mutableStateListOf<String>() }
     var rootLocation by remember { mutableStateOf(FileRepository.initialLocation(context)) }
+    var activeReader by remember { mutableStateOf<FileEntry?>(null) }
     var tabName by rememberSaveable { mutableStateOf(AppTab.HOME.name) }
     var filterName by rememberSaveable { mutableStateOf(FileCategory.ALL.name) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -474,6 +478,11 @@ private fun FilePilotApp() {
         }
     }
 
+    BackHandler(enabled = tab == AppTab.READER) {
+        activeReader = null
+        tabName = AppTab.HOME.name
+    }
+
     BackHandler(enabled = tab == AppTab.RECENTS || tab == AppTab.FAVORITES || tab == AppTab.CLEAN || tab == AppTab.SHARE) {
         tabName = AppTab.HOME.name
     }
@@ -520,6 +529,7 @@ private fun FilePilotApp() {
                                     AppTab.BROWSE -> if (filter == FileCategory.ALL) {
                                         currentLocation?.let { displayLocationName(context, it) } ?: stringResource(R.string.browse_title)
                                     } else categoryLabel(filter)
+                                    AppTab.READER -> activeReader?.name ?: stringResource(R.string.app_name)
                                     AppTab.CLEAN, AppTab.CLEANER -> stringResource(R.string.tab_clean)
                                     AppTab.SHARE -> stringResource(R.string.tab_share)
                                     AppTab.RECENTS -> stringResource(R.string.recents_title)
@@ -537,11 +547,14 @@ private fun FilePilotApp() {
                     }
                 },
                 navigationIcon = {
-                    if (tab == AppTab.SAFE || (tab == AppTab.BROWSE && stack.size > 1)) {
+                    if (tab == AppTab.SAFE || tab == AppTab.READER || (tab == AppTab.BROWSE && stack.size > 1)) {
                         IconButton(onClick = {
                             if (tab == AppTab.SAFE) {
                                 tabName = AppTab.HOME.name
                                 vaultPendingMove = null
+                            } else if (tab == AppTab.READER) {
+                                activeReader = null
+                                tabName = AppTab.HOME.name
                             } else {
                                 stack.removeAt(stack.lastIndex)
                             }
@@ -576,6 +589,37 @@ private fun FilePilotApp() {
                             Icon(Icons.Outlined.CreateNewFolder, contentDescription = stringResource(R.string.new_folder))
                         }
                     }
+                    if (tab == AppTab.READER && activeReader != null) {
+                        IconButton(onClick = {
+                            val entry = activeReader
+                            if (entry != null) {
+                                val favorite = FavoritesRepository.toggle(context, entry)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(if (favorite) R.string.favorite_added else R.string.favorite_removed)
+                                    )
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Outlined.Star, contentDescription = stringResource(R.string.favorite_add_action))
+                        }
+                        IconButton(onClick = {
+                            val entry = activeReader
+                            if (entry != null) runCatching {
+                                val uri = FileRepository.shareUri(context, entry)
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = entry.mimeType ?: "*/*"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, entry.name))
+                            }.onFailure {
+                                scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) }
+                            }
+                        }) {
+                            Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.action_share))
+                        }
+                    }
                     IconButton(onClick = { mainMenuExpanded = true }) {
                         Icon(Icons.Outlined.Menu, contentDescription = stringResource(R.string.menu_title))
                     }
@@ -602,7 +646,7 @@ private fun FilePilotApp() {
                     label = { Text(stringResource(R.string.tab_clean)) },
                 )
                 NavigationBarItem(
-                    selected = tab == AppTab.HOME || tab == AppTab.BROWSE || tab == AppTab.RECENTS || tab == AppTab.FAVORITES || tab == AppTab.SAFE || tab == AppTab.TOOLS || tab == AppTab.TRASH || tab == AppTab.APPS || tab == AppTab.SECURITY || tab == AppTab.SETTINGS,
+                    selected = tab == AppTab.HOME || tab == AppTab.BROWSE || tab == AppTab.READER || tab == AppTab.RECENTS || tab == AppTab.FAVORITES || tab == AppTab.SAFE || tab == AppTab.TOOLS || tab == AppTab.TRASH || tab == AppTab.APPS || tab == AppTab.SECURITY || tab == AppTab.SETTINGS,
                     onClick = { tabName = AppTab.HOME.name; filterName = FileCategory.ALL.name; query = "" },
                     icon = { Icon(Icons.Outlined.Folder, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_browse)) },
@@ -622,6 +666,8 @@ private fun FilePilotApp() {
                 modifier = Modifier.padding(padding),
                 hasAccess = FileRepository.hasStorageAccess(context),
                 hasLocation = rootLocation != null,
+                rootLocation = rootLocation,
+                reloadToken = reload,
                 onOpenFiles = { tabName = AppTab.BROWSE.name; filterName = FileCategory.ALL.name },
                 onOpenRecents = { tabName = AppTab.RECENTS.name },
                 onOpenFavorites = { tabName = AppTab.FAVORITES.name },
@@ -630,11 +676,16 @@ private fun FilePilotApp() {
                 recentFiles = recentEntries,
                 onOpenRecentEntry = ::openEntry,
                 onCategory = { category ->
-                    filterName = category.name
                     query = ""
-                    stack.clear()
-                    rootLocation?.let { stack.add(it) }
-                    tabName = AppTab.BROWSE.name
+                    if (category == FileCategory.APPS) {
+                        filterName = FileCategory.ALL.name
+                        tabName = AppTab.APPS.name
+                    } else {
+                        filterName = category.name
+                        stack.clear()
+                        rootLocation?.let { stack.add(it) }
+                        tabName = AppTab.BROWSE.name
+                    }
                 },
                 onRequestAccess = ::requestStorageAccess,
                 onChooseFolder = { folderPicker.launch(null) },
