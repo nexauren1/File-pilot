@@ -1,6 +1,7 @@
 package com.nexauren.filepilot.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -14,10 +15,19 @@ class FileCategoryTest {
         assertEquals(FileCategory.APKS, FileCategory.fromFileName("package.apk"))
     }
 
-    @Test fun keepsDirectoriesVisibleInTypedFilters() {
+    @Test fun categoryCollectionsExcludeDirectories() {
         assertTrue(FileCategory.ALL.matches("Pictures", true))
-        assertTrue(FileCategory.IMAGES.matches("Pictures", true))
+        assertFalse(FileCategory.IMAGES.matches("Pictures", true))
+        assertFalse(FileCategory.VIDEOS.matches("Movies", true))
+        assertFalse(FileCategory.DOWNLOADS.matches("Download", true, "/storage/emulated/0/Download"))
         assertEquals(FileCategory.OTHER, FileCategory.fromFileName("Pictures", true))
+    }
+
+    @Test fun categoryFiltersIncludeOnlyMatchingFiles() {
+        assertTrue(FileCategory.IMAGES.matches("holiday.jpg", false))
+        assertTrue(FileCategory.VIDEOS.matches("clip.mp4", false))
+        assertFalse(FileCategory.VIDEOS.matches("clip.jpg", false))
+        assertFalse(FileCategory.IMAGES.matches("document.pdf", false))
     }
 
     @Test fun downloadsCategoryUsesLocationPath() {
