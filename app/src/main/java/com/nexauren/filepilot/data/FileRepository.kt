@@ -12,6 +12,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 
 object FileRepository {
     private const val PREFS = "filepilot_local"
@@ -100,6 +102,63 @@ object FileRepository {
     private fun documentFromUri(context: Context, uri: Uri): DocumentFile? =
         if (DocumentsContract.isTreeUri(uri)) DocumentFile.fromTreeUri(context, uri)
         else DocumentFile.fromSingleUri(context, uri)
+
+    fun createDirectory(context: Context, location: String, name: String): Result<Unit> = runCatching {
+        require(name.isNotBlank() && name == name.trim()) { "Invalid folder name." }
+        require(!name.contains('/') && !name.contains('\\')) { "Invalid characters." }
+        val created = if (location.startsWith("content://")) {
+            documentFromUri(context, Uri.parse(location))?.createDirectory(name) != null
+        } else {
+            val parent = File(location)
+            require(parent.isDirectory && parent.canWrite()) { "Folder is not writable." }
+            File(parent, name).mkdir()
+        }
+        check(created) { "Folder could not be created." }
+    }
+
+    fun copyToTree(context: Context, entry: FileEntry, destinationTreeUri: Uri): Result<Unit> = runCatching {
+        require(!entry.isDirectory) { "Folder copying is not supported by this operation." }
+        val destination = DocumentFile.fromTreeUri(context, destinationTreeUri)
+            ?: error("Destination folder is unavailable.")
+        require(destination.isDirectory && destination.canWrite()) { "Destination folder is not writable." }
+
+        val outputName = uniqueDocumentName(destination, entry.name)
+        val target = destination.createFile(entry.mimeType ?: "application/octet-stream", outputName)
+            ?: error("Could not create the destination file.")
+        try {
+            openEntryInputStream(context, entry).use { source ->
+                val output = context.contentResolver.openOutputStream(target.uri, "wt")
+                    ?: error("Could not open the destination file.")
+                output.use { sink -> source.copyTo(sink, 32 * 1024) }
+            }
+        } catch (error: Throwable) {
+            target.delete()
+            throw error
+        }
+    }
+
+    private fun openEntryInputStream(context: Context, entry: FileEntry): InputStream {
+        return if (entry.location.startsWith("content://")) {
+            context.contentResolver.openInputStream(Uri.parse(entry.location))
+                ?: error("File could not be opened.")
+        } else {
+            val file = File(entry.location)
+            require(file.isFile && file.canRead()) { "File is not readable." }
+            FileInputStream(file)
+        }
+    }
+
+    private fun uniqueDocumentName(destination: DocumentFile, original: String): String {
+        if (destination.findFile(original) == null) return original
+        val dot = original.lastIndexOf('.')
+        val stem = if (dot > 0) original.substring(0, dot) else original
+        val extension = if (dot > 0) original.substring(dot) else ""
+        for (number in 1..9999) {
+            val candidate = stem + " (" + number + ")" + extension
+            if (destination.findFile(candidate) == null) return candidate
+        }
+        error("Could not choose a unique filename.")
+    }
 
     private fun mimeFromName(name: String): String? {
         val extension = name.substringAfterLast('.', "").lowercase()
