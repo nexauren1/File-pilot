@@ -30,7 +30,7 @@
     <string name="settings_full_access">Manage all files access</string>
     <string name="settings_folder">Choose or change folder</string>
     <string name="settings_about">About FilePilot</string>
-    <string name="settings_version">Version 0.1.0 · Early development</string>
+    <string name="settings_version">Version 0.3.0 · Beta testing</string>
     <string name="tab_home">Home</string>
     <string name="tab_browse">Files</string>
     <string name="tab_settings">Settings</string>
@@ -167,5 +167,19 @@
     <string name="apps_uninstall">Uninstall</string>
     <string name="apps_system_label">System app</string>
     <string name="apps_protected_label">Protected</string>
+
+
+    <string name="menu_title">Menu</string>
+    <string name="tab_clean">Clean</string>
+    <string name="tab_share">Share</string>
+    <string name="recent_files_section">Recent files</string>
+    <string name="see_all">See all</string>
+    <string name="collection_title">Collections</string>
+    <string name="storage_devices">Storage</string>
+    <string name="share_screen_title">Share files</string>
+    <string name="share_screen_body">Choose a file and share it with nearby devices or any compatible app. Android will show the available sharing options.</string>
+    <string name="share_pick_action">Choose a file to share</string>
+    <string name="share_recent_title">Share a recent file</string>
+    <string name="share_empty">Opened files will appear here for quick sharing.</string>
 
 </resources>
