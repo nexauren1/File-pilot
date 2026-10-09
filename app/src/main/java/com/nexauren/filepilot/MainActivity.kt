@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
@@ -102,6 +103,7 @@ import com.nexauren.filepilot.data.FileCategory
 import com.nexauren.filepilot.data.FileEntry
 import com.nexauren.filepilot.data.FileRepository
 import com.nexauren.filepilot.data.FavoritesRepository
+import com.nexauren.filepilot.data.RecentFilesRepository
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -134,7 +136,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppTab { HOME, BROWSE, FAVORITES, SAFE, SETTINGS }
+private enum class AppTab { HOME, BROWSE, RECENTS, FAVORITES, SAFE, SETTINGS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -149,6 +151,7 @@ private fun FilePilotApp() {
     var reload by remember { mutableIntStateOf(0) }
     var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var favorites by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
+    var recentEntries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<FileEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<FileEntry?>(null) }
@@ -266,8 +269,10 @@ private fun FilePilotApp() {
     }
 
     LaunchedEffect(tabName, reload) {
-        if (tab == AppTab.FAVORITES) {
-            favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
+        when (tab) {
+            AppTab.FAVORITES -> favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
+            AppTab.RECENTS -> recentEntries = withContext(Dispatchers.IO) { RecentFilesRepository.list(context) }
+            else -> Unit
         }
     }
 
@@ -311,12 +316,14 @@ private fun FilePilotApp() {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(viewIntent, entry.name))
+            RecentFilesRepository.recordOpen(context, entry)
+            reload++
         } catch (_: Exception) {
             scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.open_error)) }
         }
     }
 
-    BackHandler(enabled = tab == AppTab.FAVORITES) {
+    BackHandler(enabled = tab == AppTab.RECENTS || tab == AppTab.FAVORITES) {
         tabName = AppTab.HOME.name
     }
 
@@ -352,6 +359,7 @@ private fun FilePilotApp() {
                                     AppTab.HOME -> stringResource(R.string.app_name)
                                     AppTab.BROWSE -> currentLocation?.let { displayLocationName(context, it) }
                                         ?: stringResource(R.string.browse_title)
+                                    AppTab.RECENTS -> stringResource(R.string.recents_title)
                                     AppTab.FAVORITES -> stringResource(R.string.favorites_title)
                                     AppTab.SAFE -> stringResource(R.string.vault_title)
                                     AppTab.SETTINGS -> stringResource(R.string.settings_title)
@@ -403,7 +411,7 @@ private fun FilePilotApp() {
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 NavigationBarItem(
-                    selected = tab == AppTab.HOME || tab == AppTab.FAVORITES,
+                    selected = tab == AppTab.HOME || tab == AppTab.RECENTS || tab == AppTab.FAVORITES,
                     onClick = { tabName = AppTab.HOME.name },
                     icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_home)) },
@@ -433,6 +441,7 @@ private fun FilePilotApp() {
                 hasAccess = FileRepository.hasStorageAccess(context),
                 hasLocation = rootLocation != null,
                 onOpenFiles = { tabName = AppTab.BROWSE.name; filterName = FileCategory.ALL.name },
+                onOpenRecents = { tabName = AppTab.RECENTS.name },
                 onOpenFavorites = { tabName = AppTab.FAVORITES.name },
                 onOpenSafeFolder = { vaultPendingMove = null; tabName = AppTab.SAFE.name },
                 onCategory = { category ->
@@ -499,6 +508,52 @@ private fun FilePilotApp() {
                     )
                 }
             }
+            AppTab.RECENTS -> FileListScreen(
+                modifier = Modifier.padding(padding),
+                entries = recentEntries,
+                loading = false,
+                onOpen = ::openEntry,
+                onRename = { entry -> renameTarget = entry; renameText = entry.name },
+                onDelete = { deleteTarget = it },
+                onMoveToSafeFolder = { entry ->
+                    vaultPendingMove = entry
+                    tabName = AppTab.SAFE.name
+                },
+                onCopyToFolder = { entry ->
+                    transferTarget = entry
+                    transferAsMove = false
+                    destinationFolderPicker.launch(null)
+                },
+                onMoveToFolder = { entry ->
+                    transferTarget = entry
+                    transferAsMove = true
+                    destinationFolderPicker.launch(null)
+                },
+                onToggleFavorite = { entry ->
+                    val nowFavorite = FavoritesRepository.toggle(context, entry)
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            context.getString(if (nowFavorite) R.string.favorite_added else R.string.favorite_removed)
+                        )
+                    }
+                    reload++
+                },
+                isFavorite = { entry -> FavoritesRepository.isFavorite(context, entry) },
+                onShare = { entry ->
+                    try {
+                        val uri = FileRepository.shareUri(context, entry)
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = entry.mimeType ?: "*/*"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(intent, entry.name))
+                    } catch (_: Exception) {
+                        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) }
+                    }
+                },
+                onClearFilter = { tabName = AppTab.HOME.name },
+            )
             AppTab.FAVORITES -> FileListScreen(
                 modifier = Modifier.padding(padding),
                 entries = favorites,
@@ -644,6 +699,7 @@ private fun HomeScreen(
     hasAccess: Boolean,
     hasLocation: Boolean,
     onOpenFiles: () -> Unit,
+    onOpenRecents: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSafeFolder: () -> Unit,
     onCategory: (FileCategory) -> Unit,
@@ -659,6 +715,25 @@ private fun HomeScreen(
         Text(stringResource(R.string.home_subtitle), color = SecondaryText)
         StorageCard(hasAccess = hasAccess, hasLocation = hasLocation)
         if (!hasLocation) PermissionCard(onRequestAccess, onChooseFolder)
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenRecents),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.History, contentDescription = null, tint = AppBlue)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.recents_title), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.recents_subtitle), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             TextButton(onClick = onOpenFiles) { Text(stringResource(R.string.category_all)) }
