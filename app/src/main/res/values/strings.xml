@@ -35,7 +35,7 @@
     <string name="settings_full_access">Manage all files access</string>
     <string name="settings_folder">Choose or change folder</string>
     <string name="settings_about">About FilePilot</string>
-    <string name="settings_version">Version 0.3.0 · Beta testing</string>
+    <string name="settings_version">Version 0.4.0 · Beta testing</string>
     <string name="tab_home">Home</string>
     <string name="tab_browse">Files</string>
     <string name="tab_settings">Settings</string>

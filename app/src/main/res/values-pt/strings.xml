@@ -35,7 +35,7 @@
     <string name="settings_full_access">Acesso para gerir todos os ficheiros</string>
     <string name="settings_folder">Escolher ou mudar de pasta</string>
     <string name="settings_about">Sobre o FilePilot</string>
-    <string name="settings_version">Versão 0.3.0 · Beta para testes</string>
+    <string name="settings_version">Versão 0.4.0 · Beta para testes</string>
     <string name="tab_home">Início</string>
     <string name="tab_browse">Ficheiros</string>
     <string name="tab_settings">Definições</string>
