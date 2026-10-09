@@ -30,6 +30,12 @@ class FileCategoryTest {
         assertFalse(FileCategory.IMAGES.matches("document.pdf", false))
     }
 
+    @Test fun installedAppsAreNotTreatedAsApkFiles() {
+        assertTrue(FileCategory.APKS.matches("setup.apk", false))
+        assertFalse(FileCategory.APPS.matches("setup.apk", false))
+        assertFalse(FileCategory.APPS.matches("photos", true))
+    }
+
     @Test fun downloadsCategoryUsesLocationPath() {
         assertTrue(FileCategory.DOWNLOADS.matches("report.pdf", false, "/storage/emulated/0/Download/report.pdf"))
         assertTrue(FileCategory.DOWNLOADS.matches("photo.jpg", false, "content://provider/tree/primary%3ADownload/document/primary%3ADownload%2Fphoto.jpg"))
