@@ -49,6 +49,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -100,6 +101,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.nexauren.filepilot.data.FileCategory
 import com.nexauren.filepilot.data.FileEntry
 import com.nexauren.filepilot.data.FileRepository
+import com.nexauren.filepilot.data.FavoritesRepository
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -132,7 +134,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppTab { HOME, BROWSE, SAFE, SETTINGS }
+private enum class AppTab { HOME, BROWSE, FAVORITES, SAFE, SETTINGS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,6 +148,7 @@ private fun FilePilotApp() {
     var showSearch by rememberSaveable { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
     var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
+    var favorites by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<FileEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<FileEntry?>(null) }
@@ -262,6 +265,12 @@ private fun FilePilotApp() {
         rootLocation?.let { stack.add(it) }
     }
 
+    LaunchedEffect(tabName, reload) {
+        if (tab == AppTab.FAVORITES) {
+            favorites = withContext(Dispatchers.IO) { FavoritesRepository.list(context) }
+        }
+    }
+
     LaunchedEffect(currentLocation, filterName, query, reload, tabName) {
         if (currentLocation != null && tab == AppTab.BROWSE) {
             loading = true
@@ -307,6 +316,10 @@ private fun FilePilotApp() {
         }
     }
 
+    BackHandler(enabled = tab == AppTab.FAVORITES) {
+        tabName = AppTab.HOME.name
+    }
+
     BackHandler(enabled = tab == AppTab.SAFE) {
         tabName = AppTab.HOME.name
         vaultPendingMove = null
@@ -339,6 +352,7 @@ private fun FilePilotApp() {
                                     AppTab.HOME -> stringResource(R.string.app_name)
                                     AppTab.BROWSE -> currentLocation?.let { displayLocationName(context, it) }
                                         ?: stringResource(R.string.browse_title)
+                                    AppTab.FAVORITES -> stringResource(R.string.favorites_title)
                                     AppTab.SAFE -> stringResource(R.string.vault_title)
                                     AppTab.SETTINGS -> stringResource(R.string.settings_title)
                                 },
@@ -389,7 +403,7 @@ private fun FilePilotApp() {
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 NavigationBarItem(
-                    selected = tab == AppTab.HOME,
+                    selected = tab == AppTab.HOME || tab == AppTab.FAVORITES,
                     onClick = { tabName = AppTab.HOME.name },
                     icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_home)) },
@@ -419,6 +433,7 @@ private fun FilePilotApp() {
                 hasAccess = FileRepository.hasStorageAccess(context),
                 hasLocation = rootLocation != null,
                 onOpenFiles = { tabName = AppTab.BROWSE.name; filterName = FileCategory.ALL.name },
+                onOpenFavorites = { tabName = AppTab.FAVORITES.name },
                 onOpenSafeFolder = { vaultPendingMove = null; tabName = AppTab.SAFE.name },
                 onCategory = { category ->
                     filterName = category.name
@@ -457,6 +472,16 @@ private fun FilePilotApp() {
                             transferAsMove = true
                             destinationFolderPicker.launch(null)
                         },
+                        onToggleFavorite = { entry ->
+                            val nowFavorite = FavoritesRepository.toggle(context, entry)
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    context.getString(if (nowFavorite) R.string.favorite_added else R.string.favorite_removed)
+                                )
+                            }
+                            reload++
+                        },
+                        isFavorite = { entry -> FavoritesRepository.isFavorite(context, entry) },
                         onShare = { entry ->
                             try {
                                 val uri = FileRepository.shareUri(context, entry)
@@ -474,6 +499,52 @@ private fun FilePilotApp() {
                     )
                 }
             }
+            AppTab.FAVORITES -> FileListScreen(
+                modifier = Modifier.padding(padding),
+                entries = favorites,
+                loading = false,
+                onOpen = ::openEntry,
+                onRename = { entry -> renameTarget = entry; renameText = entry.name },
+                onDelete = { deleteTarget = it },
+                onMoveToSafeFolder = { entry ->
+                    vaultPendingMove = entry
+                    tabName = AppTab.SAFE.name
+                },
+                onCopyToFolder = { entry ->
+                    transferTarget = entry
+                    transferAsMove = false
+                    destinationFolderPicker.launch(null)
+                },
+                onMoveToFolder = { entry ->
+                    transferTarget = entry
+                    transferAsMove = true
+                    destinationFolderPicker.launch(null)
+                },
+                onToggleFavorite = { entry ->
+                    val nowFavorite = FavoritesRepository.toggle(context, entry)
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            context.getString(if (nowFavorite) R.string.favorite_added else R.string.favorite_removed)
+                        )
+                    }
+                    reload++
+                },
+                isFavorite = { entry -> FavoritesRepository.isFavorite(context, entry) },
+                onShare = { entry ->
+                    try {
+                        val uri = FileRepository.shareUri(context, entry)
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = entry.mimeType ?: "*/*"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(intent, entry.name))
+                    } catch (_: Exception) {
+                        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.error_operation)) }
+                    }
+                },
+                onClearFilter = { tabName = AppTab.HOME.name },
+            )
             AppTab.SAFE -> SecureFolderScreen(
                 modifier = Modifier.padding(padding),
                 pendingMove = vaultPendingMove,
@@ -573,6 +644,7 @@ private fun HomeScreen(
     hasAccess: Boolean,
     hasLocation: Boolean,
     onOpenFiles: () -> Unit,
+    onOpenFavorites: () -> Unit,
     onOpenSafeFolder: () -> Unit,
     onCategory: (FileCategory) -> Unit,
     onRequestAccess: () -> Unit,
@@ -601,6 +673,25 @@ private fun HomeScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { category ->
                     CategoryCard(category, Modifier.weight(1f)) { onCategory(category) }
+                }
+            }
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenFavorites),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF1EFF7)),
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFE2DCF6)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Star, contentDescription = null, tint = Color(0xFF6650A4))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.favorites_title), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.favorites_subtitle), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -757,6 +848,8 @@ private fun FileListScreen(
     onMoveToSafeFolder: (FileEntry) -> Unit,
     onCopyToFolder: (FileEntry) -> Unit,
     onMoveToFolder: (FileEntry) -> Unit,
+    onToggleFavorite: (FileEntry) -> Unit,
+    isFavorite: (FileEntry) -> Boolean,
     onShare: (FileEntry) -> Unit,
     onClearFilter: () -> Unit,
 ) {
@@ -781,7 +874,7 @@ private fun FileListScreen(
         ) {
             if (loading) item { Text("Loading…", color = SecondaryText, modifier = Modifier.padding(16.dp)) }
             items(entries, key = { it.location }) { entry ->
-                FileRow(entry, onClick = { onOpen(entry) }, onRename = { onRename(entry) }, onDelete = { onDelete(entry) }, onMoveToSafeFolder = { onMoveToSafeFolder(entry) }, onCopyToFolder = { onCopyToFolder(entry) }, onMoveToFolder = { onMoveToFolder(entry) }, onShare = { onShare(entry) })
+                FileRow(entry, onClick = { onOpen(entry) }, onRename = { onRename(entry) }, onDelete = { onDelete(entry) }, onMoveToSafeFolder = { onMoveToSafeFolder(entry) }, onCopyToFolder = { onCopyToFolder(entry) }, onMoveToFolder = { onMoveToFolder(entry) }, onToggleFavorite = { onToggleFavorite(entry) }, isFavorite = isFavorite(entry), onShare = { onShare(entry) })
             }
         }
     }
@@ -796,6 +889,8 @@ private fun FileRow(
     onMoveToSafeFolder: () -> Unit,
     onCopyToFolder: () -> Unit,
     onMoveToFolder: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    isFavorite: Boolean,
     onShare: () -> Unit,
 ) {
     var menuExpanded by remember(entry.location) { mutableStateOf(false) }
@@ -815,6 +910,10 @@ private fun FileRow(
             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = SecondaryText) }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (isFavorite) R.string.favorite_remove_action else R.string.favorite_add_action)) },
+                    onClick = { menuExpanded = false; onToggleFavorite() },
+                )
                 if (!entry.isDirectory) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.action_copy_to)) }, onClick = { menuExpanded = false; onCopyToFolder() })
                     DropdownMenuItem(text = { Text(stringResource(R.string.action_move_to)) }, onClick = { menuExpanded = false; onMoveToFolder() })
