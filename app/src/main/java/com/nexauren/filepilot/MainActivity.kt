@@ -39,7 +39,9 @@ import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.MoreVert
@@ -103,10 +105,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val AppBlue = Color(0xFF2563EB)
-private val PageBackground = Color(0xFFF6F8FC)
-private val SecondaryText = Color(0xFF667085)
-private val SoftBlue = Color(0xFFEAF1FF)
+// FilePilot keeps the familiar, straightforward file-manager layout with its own violet identity.
+private val AppBlue = Color(0xFF6D4AE8)
+private val PageBackground = Color(0xFFF8F7FC)
+private val SecondaryText = Color(0xFF6B6680)
+private val SoftBlue = Color(0xFFEFEAFF)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -117,10 +120,10 @@ class MainActivity : ComponentActivity() {
                     primary = AppBlue,
                     onPrimary = Color.White,
                     background = PageBackground,
-                    onBackground = Color(0xFF172033),
+                    onBackground = Color(0xFF201B2C),
                     surface = Color.White,
                     onSurface = Color(0xFF172033),
-                    surfaceVariant = Color(0xFFF0F3F9),
+                    surfaceVariant = Color(0xFFF1EFF7),
                     onSurfaceVariant = SecondaryText,
                 ),
             ) { FilePilotApp() }
@@ -128,7 +131,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppTab { HOME, BROWSE, SETTINGS }
+private enum class AppTab { HOME, BROWSE, SAFE, SETTINGS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,6 +148,7 @@ private fun FilePilotApp() {
     var loading by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<FileEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<FileEntry?>(null) }
+    var vaultPendingMove by remember { mutableStateOf<FileEntry?>(null) }
     var renameText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -224,7 +228,7 @@ private fun FilePilotApp() {
                 FileRepository.listChildren(context, currentLocation)
             }
             entries = loaded.filter { entry ->
-                filter.matches(entry.name, entry.isDirectory) &&
+                filter.matches(entry.name, entry.isDirectory, entry.location) &&
                     entry.name.contains(query.trim(), ignoreCase = true)
             }
             loading = false
@@ -262,6 +266,11 @@ private fun FilePilotApp() {
         }
     }
 
+    BackHandler(enabled = tab == AppTab.SAFE) {
+        tabName = AppTab.HOME.name
+        vaultPendingMove = null
+    }
+
     BackHandler(enabled = tab == AppTab.BROWSE && stack.size > 1) {
         stack.removeAt(stack.lastIndex)
         filterName = FileCategory.ALL.name
@@ -289,6 +298,7 @@ private fun FilePilotApp() {
                                     AppTab.HOME -> stringResource(R.string.app_name)
                                     AppTab.BROWSE -> currentLocation?.let { displayLocationName(context, it) }
                                         ?: stringResource(R.string.browse_title)
+                                    AppTab.SAFE -> stringResource(R.string.vault_title)
                                     AppTab.SETTINGS -> stringResource(R.string.settings_title)
                                 },
                                 fontWeight = FontWeight.Bold,
@@ -304,8 +314,15 @@ private fun FilePilotApp() {
                     }
                 },
                 navigationIcon = {
-                    if (tab == AppTab.BROWSE && stack.size > 1) {
-                        IconButton(onClick = { stack.removeAt(stack.lastIndex) }) {
+                    if (tab == AppTab.SAFE || (tab == AppTab.BROWSE && stack.size > 1)) {
+                        IconButton(onClick = {
+                            if (tab == AppTab.SAFE) {
+                                tabName = AppTab.HOME.name
+                                vaultPendingMove = null
+                            } else {
+                                stack.removeAt(stack.lastIndex)
+                            }
+                        }) {
                             Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
                         }
                     }
@@ -355,6 +372,7 @@ private fun FilePilotApp() {
                 hasAccess = FileRepository.hasStorageAccess(context),
                 hasLocation = rootLocation != null,
                 onOpenFiles = { tabName = AppTab.BROWSE.name; filterName = FileCategory.ALL.name },
+                onOpenSafeFolder = { vaultPendingMove = null; tabName = AppTab.SAFE.name },
                 onCategory = { category ->
                     filterName = category.name
                     query = ""
@@ -378,6 +396,10 @@ private fun FilePilotApp() {
                         onOpen = ::openEntry,
                         onRename = { entry -> renameTarget = entry; renameText = entry.name },
                         onDelete = { deleteTarget = it },
+                        onMoveToSafeFolder = { entry ->
+                            vaultPendingMove = entry
+                            tabName = AppTab.SAFE.name
+                        },
                         onShare = { entry ->
                             try {
                                 val uri = FileRepository.shareUri(context, entry)
@@ -395,6 +417,12 @@ private fun FilePilotApp() {
                     )
                 }
             }
+            AppTab.SAFE -> SecureFolderScreen(
+                modifier = Modifier.padding(padding),
+                pendingMove = vaultPendingMove,
+                onMoveHandled = { vaultPendingMove = null },
+                onMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
+            )
             AppTab.SETTINGS -> SettingsScreen(
                 modifier = Modifier.padding(padding),
                 hasAccess = FileRepository.hasStorageAccess(context),
@@ -460,6 +488,7 @@ private fun HomeScreen(
     hasAccess: Boolean,
     hasLocation: Boolean,
     onOpenFiles: () -> Unit,
+    onOpenSafeFolder: () -> Unit,
     onCategory: (FileCategory) -> Unit,
     onRequestAccess: () -> Unit,
     onChooseFolder: () -> Unit,
@@ -481,11 +510,31 @@ private fun HomeScreen(
             FileCategory.IMAGES, FileCategory.VIDEOS,
             FileCategory.AUDIO, FileCategory.DOCUMENTS,
             FileCategory.ARCHIVES, FileCategory.APKS,
+            FileCategory.DOWNLOADS, FileCategory.OTHER,
         )
         categories.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { category ->
                     CategoryCard(category, Modifier.weight(1f)) { onCategory(category) }
+                }
+            }
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenSafeFolder),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFECE7FF)),
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFDCD3FF)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Lock, contentDescription = null, tint = Color(0xFF6650A4))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.vault_title), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.vault_home_subtitle), color = Color(0xFF655A80), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -620,6 +669,7 @@ private fun FileListScreen(
     onOpen: (FileEntry) -> Unit,
     onRename: (FileEntry) -> Unit,
     onDelete: (FileEntry) -> Unit,
+    onMoveToSafeFolder: (FileEntry) -> Unit,
     onShare: (FileEntry) -> Unit,
     onClearFilter: () -> Unit,
 ) {
@@ -644,7 +694,7 @@ private fun FileListScreen(
         ) {
             if (loading) item { Text("Loading…", color = SecondaryText, modifier = Modifier.padding(16.dp)) }
             items(entries, key = { it.location }) { entry ->
-                FileRow(entry, onClick = { onOpen(entry) }, onRename = { onRename(entry) }, onDelete = { onDelete(entry) }, onShare = { onShare(entry) })
+                FileRow(entry, onClick = { onOpen(entry) }, onRename = { onRename(entry) }, onDelete = { onDelete(entry) }, onMoveToSafeFolder = { onMoveToSafeFolder(entry) }, onShare = { onShare(entry) })
             }
         }
     }
@@ -656,6 +706,7 @@ private fun FileRow(
     onClick: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onMoveToSafeFolder: () -> Unit,
     onShare: () -> Unit,
 ) {
     var menuExpanded by remember(entry.location) { mutableStateOf(false) }
@@ -675,6 +726,7 @@ private fun FileRow(
             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = SecondaryText) }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.action_move_safe)) }, onClick = { menuExpanded = false; onMoveToSafeFolder() })
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_rename)) }, onClick = { menuExpanded = false; onRename() })
                 DropdownMenuItem(text = { Text(stringResource(R.string.action_delete)) }, onClick = { menuExpanded = false; onDelete() })
             }
@@ -727,6 +779,7 @@ private fun categoryIcon(category: FileCategory): ImageVector = when (category) 
     FileCategory.DOCUMENTS -> Icons.Outlined.Description
     FileCategory.ARCHIVES -> Icons.Outlined.Archive
     FileCategory.APKS -> Icons.Outlined.Apps
+    FileCategory.DOWNLOADS -> Icons.Outlined.Download
     FileCategory.OTHER -> Icons.Outlined.Folder
 }
 
@@ -739,7 +792,8 @@ private fun categoryLabel(category: FileCategory): String = when (category) {
     FileCategory.DOCUMENTS -> stringResource(R.string.category_documents)
     FileCategory.ARCHIVES -> stringResource(R.string.category_archives)
     FileCategory.APKS -> stringResource(R.string.category_apks)
-    FileCategory.OTHER -> stringResource(R.string.category_all)
+    FileCategory.DOWNLOADS -> stringResource(R.string.category_downloads)
+    FileCategory.OTHER -> stringResource(R.string.category_other)
 }
 
 private fun displayLocationName(context: android.content.Context, location: String): String {
