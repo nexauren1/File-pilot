@@ -103,4 +103,7 @@
     <string name="favorite_remove_action">Remover dos favoritos</string>
     <string name="favorite_added">Adicionado aos favoritos.</string>
     <string name="favorite_removed">Removido dos favoritos.</string>
+
+    <string name="recents_title">Ficheiros recentes</string>
+    <string name="recents_subtitle">Acesso rápido aos ficheiros abertos recentemente.</string>
 </resources>
