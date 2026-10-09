@@ -453,6 +453,19 @@ private fun FilePilotApp() {
         }
     }
 
+    fun openExternalEntry(entry: FileEntry) {
+        try {
+            val uri = FileRepository.shareUri(context, entry)
+            val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, entry.mimeType ?: "*/*")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(viewIntent, entry.name))
+        } catch (_: Exception) {
+            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.open_error)) }
+        }
+    }
+
     fun openEntry(entry: FileEntry) {
         if (entry.isDirectory) {
             // Category collections are strictly file-only; folder browsing is reserved for ALL files.
@@ -464,18 +477,16 @@ private fun FilePilotApp() {
             tabName = AppTab.BROWSE.name
             return
         }
-        try {
-            val uri = FileRepository.shareUri(context, entry)
-            val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, entry.mimeType ?: "*/*")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(viewIntent, entry.name))
+        if (supportsInternalReader(entry)) {
+            activeReader = entry
+            tabName = AppTab.READER.name
             RecentFilesRepository.recordOpen(context, entry)
             reload++
-        } catch (_: Exception) {
-            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.open_error)) }
+            return
         }
+        openExternalEntry(entry)
+        RecentFilesRepository.recordOpen(context, entry)
+        reload++
     }
 
     BackHandler(enabled = tab == AppTab.READER) {
@@ -697,6 +708,22 @@ private fun FilePilotApp() {
                 onMoveToTrash = ::moveToTrash,
                 onProcessing = { processing = it },
             )
+            AppTab.READER -> {
+                val entry = activeReader
+                if (entry != null) {
+                    InternalFileReaderScreen(
+                        entry = entry,
+                        modifier = Modifier.padding(padding),
+                        onOpenExternal = { openExternalEntry(entry) },
+                    )
+                } else {
+                    PermissionScreen(
+                        modifier = Modifier.padding(padding),
+                        onRequestAccess = ::requestStorageAccess,
+                        onChooseFolder = { folderPicker.launch(null) },
+                    )
+                }
+            }
             AppTab.SHARE -> ShareScreen(
                 modifier = Modifier.padding(padding),
                 recentFiles = recentEntries,
