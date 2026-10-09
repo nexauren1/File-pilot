@@ -8,6 +8,10 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,10 +27,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Folder
@@ -535,7 +541,47 @@ fun TrashScreen(
 }
 
 @Composable
-fun CleanerScreen(modifier: Modifier, rootLocation: String?, onRequestAccess: () -> Unit, onMoveToTrash: (FileEntry) -> Unit) {
+private fun ScanCompleteCard() {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = FeatureMint),
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            androidx.compose.ui.Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(Modifier.size(62.dp)) {
+                Box(
+                    Modifier.align(Alignment.TopStart).size(46.dp).clip(RoundedCornerShape(16.dp)).background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.Storage, contentDescription = null, tint = Color(0xFF16816D), modifier = Modifier.size(26.dp))
+                }
+                Box(
+                    Modifier.align(Alignment.BottomEnd).size(30.dp).clip(CircleShape).background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF16816D), modifier = Modifier.size(27.dp))
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.cleaner_scan_complete), fontWeight = FontWeight.Bold, color = Color(0xFF155C4D))
+                Text(stringResource(R.string.cleaner_scan_complete_desc), color = Color(0xFF356E62), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+@Composable
+fun CleanerScreen(
+    modifier: Modifier,
+    rootLocation: String?,
+    onRequestAccess: () -> Unit,
+    onMoveToTrash: (FileEntry) -> Unit,
+    onProcessing: (Boolean) -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var report by remember { mutableStateOf<StorageReport?>(null) }
@@ -564,8 +610,13 @@ fun CleanerScreen(modifier: Modifier, rootLocation: String?, onRequestAccess: ()
                         if (rootLocation == null) onRequestAccess()
                         else scope.launch {
                             scanning = true
-                            report = withContext(Dispatchers.IO) { StorageAnalyzer.scan(context, rootLocation) }
-                            scanning = false
+                            onProcessing(true)
+                            try {
+                                report = withContext(Dispatchers.IO) { StorageAnalyzer.scan(context, rootLocation) }
+                            } finally {
+                                scanning = false
+                                onProcessing(false)
+                            }
                         }
                     },
                     enabled = !scanning,
@@ -577,6 +628,13 @@ fun CleanerScreen(modifier: Modifier, rootLocation: String?, onRequestAccess: ()
         }
 
         val snapshot = report
+        AnimatedVisibility(
+            visible = snapshot != null,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut(),
+        ) {
+            ScanCompleteCard()
+        }
         if (snapshot == null) {
             Text(stringResource(R.string.cleaner_recommendations_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
