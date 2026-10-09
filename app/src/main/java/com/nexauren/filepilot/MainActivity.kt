@@ -46,7 +46,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1332,32 +1332,322 @@ private fun FileListScreen(
     isFavorite: (FileEntry) -> Boolean,
     onShare: (FileEntry) -> Unit,
     onClearFilter: () -> Unit,
+    collectionMode: Boolean = false,
+    collectionCategory: FileCategory = FileCategory.ALL,
 ) {
-    if (entries.isEmpty() && !loading) {
+    // Defensive filtering is intentional: collection screens must never show folders,
+    // even if a future provider returns a directory row unexpectedly.
+    val visibleEntries = remember(entries, collectionMode) {
+        if (collectionMode) entries.filterNot { it.isDirectory } else entries
+    }
+
+    if (visibleEntries.isEmpty() && !loading) {
         Column(
             modifier.fillMaxSize().padding(28.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(Icons.Outlined.Folder, contentDescription = null, tint = Color(0xFF9AA6B8), modifier = Modifier.size(56.dp))
-            Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.empty_title), fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
-            Text(stringResource(R.string.empty_message), color = SecondaryText, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(12.dp))
+            FilePilotIllustration(category = collectionCategory, modifier = Modifier.padding(bottom = 18.dp))
+            Text(
+                stringResource(if (collectionMode) R.string.empty_collection_title else R.string.empty_title),
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium,
+                color = Ink,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(if (collectionMode) R.string.empty_collection_message else R.string.empty_message),
+                color = SecondaryText,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(14.dp))
             TextButton(onClick = onClearFilter) { Text(stringResource(R.string.category_all)) }
         }
     } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 20.dp),
-        ) {
-            if (loading) item { Text("Loading…", color = SecondaryText, modifier = Modifier.padding(16.dp)) }
-            items(entries, key = { it.location }) { entry ->
-                FileRow(entry, onClick = { onOpen(entry) }, onRename = { onRename(entry) }, onDelete = { onDelete(entry) }, onMoveToSafeFolder = { onMoveToSafeFolder(entry) }, onCopyToFolder = { onCopyToFolder(entry) }, onMoveToFolder = { onMoveToFolder(entry) }, onToggleFavorite = { onToggleFavorite(entry) }, isFavorite = isFavorite(entry), onShare = { onShare(entry) })
+        Column(modifier.fillMaxSize()) {
+            if (collectionMode) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            stringResource(R.string.collection_files_count, visibleEntries.size),
+                            color = Ink,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            stringResource(R.string.collection_sort_recent),
+                            color = SecondaryText,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    TextButton(onClick = onClearFilter) { Text(stringResource(R.string.category_all)) }
+                }
+            }
+
+            if (collectionMode && (collectionCategory == FileCategory.IMAGES || collectionCategory == FileCategory.VIDEOS)) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 22.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    gridItems(visibleEntries, key = { it.location }) { entry ->
+                        MediaCollectionTile(
+                            entry = entry,
+                            onOpen = { onOpen(entry) },
+                            onRename = { onRename(entry) },
+                            onDelete = { onDelete(entry) },
+                            onMoveToSafeFolder = { onMoveToSafeFolder(entry) },
+                            onCopyToFolder = { onCopyToFolder(entry) },
+                            onMoveToFolder = { onMoveToFolder(entry) },
+                            onToggleFavorite = { onToggleFavorite(entry) },
+                            isFavorite = isFavorite(entry),
+                            onShare = { onShare(entry) },
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 20.dp),
+                ) {
+                    if (loading) {
+                        item {
+                            Text(
+                                stringResource(R.string.processing_files),
+                                color = SecondaryText,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                    }
+                    items(visibleEntries, key = { it.location }) { entry ->
+                        FileRow(
+                            entry = entry,
+                            onClick = { onOpen(entry) },
+                            onRename = { onRename(entry) },
+                            onDelete = { onDelete(entry) },
+                            onMoveToSafeFolder = { onMoveToSafeFolder(entry) },
+                            onCopyToFolder = { onCopyToFolder(entry) },
+                            onMoveToFolder = { onMoveToFolder(entry) },
+                            onToggleFavorite = { onToggleFavorite(entry) },
+                            isFavorite = isFavorite(entry),
+                            onShare = { onShare(entry) },
+                        )
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun MediaCollectionTile(
+    entry: FileEntry,
+    onOpen: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onMoveToSafeFolder: () -> Unit,
+    onCopyToFolder: () -> Unit,
+    onMoveToFolder: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    isFavorite: Boolean,
+    onShare: () -> Unit,
+) {
+    var menuExpanded by remember(entry.location) { mutableStateOf(false) }
+    Card(
+        modifier = Modifier.fillMaxWidth().animateContentSize().clickable(onClick = onOpen),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column {
+            Box(Modifier.fillMaxWidth().height(132.dp)) {
+                FileThumbnail(entry, Modifier.fillMaxSize())
+                Box(Modifier.align(Alignment.TopEnd).padding(5.dp)) {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.94f)),
+                    ) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = Ink)
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuExpanded = false; onShare() })
+                        DropdownMenuItem(
+                            text = { Text(stringResource(if (isFavorite) R.string.favorite_remove_action else R.string.favorite_add_action)) },
+                            onClick = { menuExpanded = false; onToggleFavorite() },
+                        )
+                        DropdownMenuItem(text = { Text(stringResource(R.string.action_copy_to)) }, onClick = { menuExpanded = false; onCopyToFolder() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.action_move_to)) }, onClick = { menuExpanded = false; onMoveToFolder() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.action_move_safe)) }, onClick = { menuExpanded = false; onMoveToSafeFolder() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.action_rename)) }, onClick = { menuExpanded = false; onRename() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.action_delete)) }, onClick = { menuExpanded = false; onDelete() })
+                    }
+                }
+            }
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Ink, fontWeight = FontWeight.SemiBold)
+                Text(formatBytes(entry.sizeBytes), color = SecondaryText, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FileThumbnail(entry: FileEntry, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val thumbnail by produceState<Bitmap?>(initialValue = null, key1 = entry.location) {
+        value = loadCollectionThumbnail(context, entry)
+    }
+    Box(
+        modifier.clip(RoundedCornerShape(18.dp)).background(categoryTileBackground(entry.category)),
+        contentAlignment = Alignment.Center,
+    ) {
+        val image = thumbnail
+        if (image != null) {
+            Image(
+                bitmap = image.asImageBitmap(),
+                contentDescription = entry.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Icon(
+                categoryIcon(entry.category),
+                contentDescription = null,
+                tint = categoryAccent(entry.category),
+                modifier = Modifier.size(46.dp),
+            )
+        }
+        if (entry.category == FileCategory.VIDEOS) {
+            Box(
+                Modifier.align(Alignment.Center).size(42.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.58f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(27.dp))
+            }
+        }
+    }
+}
+
+private suspend fun loadCollectionThumbnail(context: Context, entry: FileEntry): Bitmap? = withContext(Dispatchers.IO) {
+    if (entry.category != FileCategory.IMAGES && entry.category != FileCategory.VIDEOS) return@withContext null
+    runCatching {
+        if (entry.category == FileCategory.VIDEOS) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                if (entry.location.startsWith("content://")) {
+                    retriever.setDataSource(context, Uri.parse(entry.location))
+                } else {
+                    retriever.setDataSource(entry.location)
+                }
+                val frame = retriever.getFrameAtTime(750_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                frame?.let { fitThumbnail(it, 480) }
+            } finally {
+                retriever.release()
+            }
+        } else {
+            val uri = if (entry.location.startsWith("content://")) Uri.parse(entry.location) else null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            if (uri != null) {
+                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            } else {
+                BitmapFactory.decodeFile(entry.location, bounds)
+            }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                null
+            } else {
+                var sample = 1
+                while (bounds.outWidth / sample > 480 || bounds.outHeight / sample > 480) sample *= 2
+                val options = BitmapFactory.Options().apply { inSampleSize = sample }
+                if (uri != null) {
+                    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+                } else {
+                    BitmapFactory.decodeFile(entry.location, options)
+                }
+            }
+        }
+    }.getOrNull()
+}
+
+private fun fitThumbnail(bitmap: Bitmap, maxSide: Int): Bitmap {
+    val ratio = minOf(maxSide.toFloat() / bitmap.width.coerceAtLeast(1), maxSide.toFloat() / bitmap.height.coerceAtLeast(1), 1f)
+    if (ratio >= 1f) return bitmap
+    return Bitmap.createScaledBitmap(
+        bitmap,
+        (bitmap.width * ratio).toInt().coerceAtLeast(1),
+        (bitmap.height * ratio).toInt().coerceAtLeast(1),
+        true,
+    )
+}
+
+@Composable
+private fun FilePilotIllustration(
+    modifier: Modifier = Modifier,
+    category: FileCategory = FileCategory.ALL,
+    success: Boolean = false,
+) {
+    Box(modifier.size(154.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(94.dp).rotate(-12f).clip(RoundedCornerShape(28.dp)).background(Color(0xFFE5E1FF)),
+        )
+        Box(
+            Modifier.size(90.dp).rotate(9f).clip(RoundedCornerShape(27.dp)).background(Color(0xFFDCEBF8)),
+        )
+        Box(
+            Modifier.size(84.dp).clip(RoundedCornerShape(25.dp)).background(Color.White)
+                .border(1.dp, Color(0xFFE5E1F3), RoundedCornerShape(25.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (success) Icons.Outlined.CheckCircle else categoryIcon(category),
+                contentDescription = null,
+                tint = if (success) Green else AppBlue,
+                modifier = Modifier.size(42.dp),
+            )
+        }
+        if (success) {
+            Box(
+                Modifier.align(Alignment.BottomEnd).size(38.dp).clip(CircleShape).background(Color.White)
+                    .border(1.dp, Color(0xFFD7EFE2), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Green, modifier = Modifier.size(28.dp))
+            }
+        } else {
+            Box(Modifier.align(Alignment.TopEnd).size(14.dp).clip(CircleShape).background(Teal))
+        }
+    }
+}
+
+private fun categoryTileBackground(category: FileCategory): Color = when (category) {
+    FileCategory.IMAGES -> Color(0xFFFFE8EF)
+    FileCategory.VIDEOS -> Color(0xFFDFF5F2)
+    FileCategory.AUDIO -> Color(0xFFF1E7FF)
+    FileCategory.DOCUMENTS -> Color(0xFFE7EEFF)
+    FileCategory.DOWNLOADS -> Color(0xFFE4F4E8)
+    FileCategory.APKS -> Color(0xFFFFEBD9)
+    FileCategory.ARCHIVES -> Color(0xFFEAEAF3)
+    else -> SoftBlue
+}
+
+private fun categoryAccent(category: FileCategory): Color = when (category) {
+    FileCategory.IMAGES -> Coral
+    FileCategory.VIDEOS -> Teal
+    FileCategory.AUDIO -> Color(0xFF7B43B5)
+    FileCategory.DOCUMENTS -> Color(0xFF315FB8)
+    FileCategory.DOWNLOADS -> Green
+    FileCategory.APKS -> Color(0xFFB45C18)
+    FileCategory.ARCHIVES -> Color(0xFF55556F)
+    else -> AppBlue
 }
 
 @Composable
