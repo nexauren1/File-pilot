@@ -406,30 +406,30 @@ private fun FilePilotApp() {
     fun runFileOperation(successText: String, operation: suspend () -> Result<Unit>) {
         scope.launch {
             processing = true
-            try {
-                val result = withContext(Dispatchers.IO) { operation() }
-                snackbarHostState.showSnackbar(
-                    if (result.isSuccess) successText else context.getString(R.string.error_operation)
-                )
-                reload++
+            val result = try {
+                withContext(Dispatchers.IO) { operation() }
             } finally {
                 processing = false
             }
+            snackbarHostState.showSnackbar(
+                if (result.isSuccess) successText else context.getString(R.string.error_operation)
+            )
+            reload++
         }
     }
 
     fun moveToTrash(entry: FileEntry) {
         scope.launch {
             processing = true
-            try {
-                val result = withContext(Dispatchers.IO) { TrashRepository.moveToTrash(context, entry) }
-                snackbarHostState.showSnackbar(
-                    context.getString(if (result.isSuccess) R.string.trash_success else R.string.trash_operation_error)
-                )
-                reload++
+            val result = try {
+                withContext(Dispatchers.IO) { TrashRepository.moveToTrash(context, entry) }
             } finally {
                 processing = false
             }
+            snackbarHostState.showSnackbar(
+                context.getString(if (result.isSuccess) R.string.trash_success else R.string.trash_operation_error)
+            )
+            reload++
         }
     }
 
