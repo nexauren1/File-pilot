@@ -21,6 +21,19 @@ enum class FileCategory {
     }
 
     companion object {
+        /** True when FilePilot has a built-in viewer for this file type. */
+        fun hasInAppPreview(fileName: String, mimeType: String? = null): Boolean {
+            val extension = fileName.substringAfterLast('.', "").lowercase()
+            return when {
+                mimeType.equals("application/pdf", ignoreCase = true) || extension == "pdf" -> true
+                mimeType?.startsWith("image/") == true || extension in setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif", "avif", "tif", "tiff") -> true
+                mimeType?.startsWith("video/") == true || extension in setOf("mp4", "mkv", "mov", "webm", "avi", "3gp", "m4v", "mpeg", "mpg") -> true
+                mimeType?.startsWith("audio/") == true || extension in setOf("mp3", "m4a", "wav", "ogg", "flac", "aac", "opus", "mid", "midi") -> true
+                mimeType?.startsWith("text/") == true || extension in setOf("txt", "md", "csv", "log", "json", "xml", "html", "htm", "yaml", "yml", "ini", "conf", "properties") -> true
+                else -> false
+            }
+        }
+
         fun fromFileName(fileName: String, isDirectory: Boolean = false): FileCategory {
             if (isDirectory) return OTHER
             val extension = fileName.substringAfterLast('.', "").lowercase()
