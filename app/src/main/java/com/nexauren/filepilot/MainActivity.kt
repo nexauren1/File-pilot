@@ -635,6 +635,7 @@ private fun FilePilotApp() {
                 rootLocation = rootLocation,
                 onRequestAccess = ::requestStorageAccess,
                 onMoveToTrash = ::moveToTrash,
+                onProcessing = { processing = it },
             )
             AppTab.SHARE -> ShareScreen(
                 modifier = Modifier.padding(padding),
