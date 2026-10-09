@@ -1,0 +1,28 @@
+package com.nexauren.filepilot.data
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class FileCategoryTest {
+    @Test fun recognizesCommonTypesIgnoringCase() {
+        assertEquals(FileCategory.IMAGES, FileCategory.fromFileName("holiday.JPG"))
+        assertEquals(FileCategory.VIDEOS, FileCategory.fromFileName("clip.mp4"))
+        assertEquals(FileCategory.AUDIO, FileCategory.fromFileName("voice.m4a"))
+        assertEquals(FileCategory.DOCUMENTS, FileCategory.fromFileName("report.PDF"))
+        assertEquals(FileCategory.ARCHIVES, FileCategory.fromFileName("backup.zip"))
+        assertEquals(FileCategory.APKS, FileCategory.fromFileName("package.apk"))
+    }
+
+    @Test fun directoriesAreExcludedFromTypedFilters() {
+        assertTrue(FileCategory.ALL.matches("Pictures", true))
+        assertFalse(FileCategory.IMAGES.matches("Pictures", true))
+        assertEquals(FileCategory.OTHER, FileCategory.fromFileName("Pictures", true))
+    }
+
+    @Test fun unknownExtensionsAreOther() {
+        assertEquals(FileCategory.OTHER, FileCategory.fromFileName("data.custom"))
+        assertEquals(FileCategory.OTHER, FileCategory.fromFileName("README"))
+    }
+}
