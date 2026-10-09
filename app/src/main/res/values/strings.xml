@@ -224,4 +224,15 @@
     <string name="viewer_text_truncated">Only the first 1 MB is shown.</string>
     <string name="apps_open">Open</string>
 
+
+    <string name="viewer_default_file">File</string>
+    <string name="viewer_type_pdf">PDF document</string>
+    <string name="viewer_type_image">Image</string>
+    <string name="viewer_type_video">Video</string>
+    <string name="viewer_type_audio">Audio</string>
+    <string name="viewer_type_text">Text file</string>
+    <string name="viewer_type_other">File preview</string>
+    <string name="viewer_pdf_page">PDF page %1$d</string>
+    <string name="viewer_page_number">Page %1$d</string>
+
 </resources>
