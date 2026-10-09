@@ -22,12 +22,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Refresh
@@ -80,7 +83,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
-import android.graphics.Bitmap as AndroidBitmap
 import android.view.ViewGroup
 
 private enum class ReaderKind { PDF, IMAGE, VIDEO, AUDIO, TEXT, EXTERNAL }
@@ -288,8 +290,13 @@ private fun ImageReaderScreen(entry: FileEntry, modifier: Modifier) {
 
 private suspend fun loadImage(context: Context, entry: FileEntry): Bitmap? = withContext(Dispatchers.IO) {
     runCatching {
-        val stream = openEntryStream(context, entry)
-        stream.use { BitmapFactory.decodeStream(it) }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        openEntryStream(context, entry).use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+        var sample = 1
+        while (bounds.outWidth / sample > 2600 || bounds.outHeight / sample > 2600) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        openEntryStream(context, entry).use { BitmapFactory.decodeStream(it, null, options) }
     }.getOrNull()
 }
 
@@ -432,21 +439,28 @@ private fun TextReaderScreen(entry: FileEntry, modifier: Modifier) {
     val context = LocalContext.current
     var content by remember(entry.location) { mutableStateOf<String?>(null) }
     var tooLarge by remember(entry.location) { mutableStateOf(false) }
+    var failed by remember(entry.location) { mutableStateOf(false) }
+    var loading by remember(entry.location) { mutableStateOf(true) }
     LaunchedEffect(entry.location) {
         val result = withContext(Dispatchers.IO) {
             runCatching {
                 openEntryStream(context, entry).use { stream ->
-                    val bytes = stream.readNBytes(1_500_001)
-                    if (bytes.size > 1_500_000) {
-                        tooLarge = true
-                        null
-                    } else {
-                        bytes.toString(Charsets.UTF_8)
+                    val buffer = ByteArray(1_500_001)
+                    var total = 0
+                    while (total < buffer.size) {
+                        val read = stream.read(buffer, total, buffer.size - total)
+                        if (read < 0) break
+                        total += read
                     }
+                    if (total > 1_500_000) Pair(null, true)
+                    else Pair(String(buffer, 0, total, Charsets.UTF_8), false)
                 }
             }
-        }.getOrNull()
-        content = result
+        }
+        content = result.getOrNull()?.first
+        tooLarge = result.getOrNull()?.second == true
+        failed = result.isFailure
+        loading = false
     }
     when {
         tooLarge -> ReaderErrorState(
@@ -455,7 +469,13 @@ private fun TextReaderScreen(entry: FileEntry, modifier: Modifier) {
             stringResource(R.string.reader_text_too_large_title),
             stringResource(R.string.reader_text_too_large_body),
         )
-        content == null -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        failed -> ReaderErrorState(
+            modifier,
+            Icons.Outlined.ErrorOutline,
+            stringResource(R.string.reader_load_error_title),
+            stringResource(R.string.reader_load_error_body),
+        )
+        loading -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
         else -> Column(modifier.fillMaxSize().background(Color.White)) {
