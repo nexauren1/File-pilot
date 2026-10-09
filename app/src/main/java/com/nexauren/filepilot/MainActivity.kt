@@ -502,6 +502,95 @@ private fun FilePilotApp() {
         query = ""
     }
 
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                modifier = Modifier.width(320.dp),
+                drawerContainerColor = Color.White,
+            ) {
+                            Column(
+                                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 20.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Box(
+                                        Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(AppBlue),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(Icons.Outlined.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                                    }
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+                                        Text(stringResource(R.string.home_subtitle), style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+                                    }
+                                }
+                                Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.labelLarge, color = SecondaryText, modifier = Modifier.padding(top = 4.dp, bottom = 3.dp))
+                                MenuNavigationRow(stringResource(R.string.home_title), Icons.Outlined.Home, selected = tab == AppTab.HOME) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.HOME.name
+                                    filterName = FileCategory.ALL.name
+                                    query = ""
+                                }
+                                MenuNavigationRow(stringResource(R.string.storage_title), Icons.Outlined.Storage, selected = tab == AppTab.BROWSE && filter == FileCategory.ALL) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.BROWSE.name
+                                    filterName = FileCategory.ALL.name
+                                    stack.clear()
+                                    rootLocation?.let { stack.add(it) }
+                                    query = ""
+                                }
+                                MenuNavigationRow(stringResource(R.string.tab_clean), Icons.Outlined.CleaningServices, selected = tab == AppTab.CLEAN || tab == AppTab.CLEANER) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.CLEAN.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.tab_share), Icons.Outlined.Share, selected = tab == AppTab.SHARE) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.SHARE.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.recents_title), Icons.Outlined.History, selected = tab == AppTab.RECENTS) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.RECENTS.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.favorites_title), Icons.Outlined.Star, selected = tab == AppTab.FAVORITES) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.FAVORITES.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.vault_title), Icons.Outlined.Lock, selected = tab == AppTab.SAFE) {
+                                    scope.launch { drawerState.close() }
+                                    vaultPendingMove = null
+                                    tabName = AppTab.SAFE.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.toolbox_title), Icons.Outlined.Storage, selected = tab == AppTab.TOOLS) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.TOOLS.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.trash_title), Icons.Outlined.Delete, selected = tab == AppTab.TRASH) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.TRASH.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.apps_title), Icons.Outlined.Apps, selected = tab == AppTab.APPS) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.APPS.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.security_title), Icons.Outlined.CheckCircle, selected = tab == AppTab.SECURITY) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.SECURITY.name
+                                }
+                                MenuNavigationRow(stringResource(R.string.settings_title), Icons.Outlined.Settings, selected = tab == AppTab.SETTINGS) {
+                                    scope.launch { drawerState.close() }
+                                    tabName = AppTab.SETTINGS.name
+                                }
+                            }
+                        }
+            }
+        },
+        gesturesEnabled = tab != AppTab.VIEWER,
+    ) {
     Scaffold(
         containerColor = PageBackground,
         topBar = {
@@ -911,89 +1000,6 @@ private fun FilePilotApp() {
         }
     }
 
-    if (mainMenuExpanded) {
-        ModalBottomSheet(
-            onDismissRequest = { mainMenuExpanded = false },
-            containerColor = Color.White,
-        ) {
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 26.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Box(
-                        Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(AppBlue),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Outlined.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-                        Text(stringResource(R.string.home_subtitle), style = MaterialTheme.typography.bodySmall, color = SecondaryText)
-                    }
-                }
-                Text(stringResource(R.string.quick_access), style = MaterialTheme.typography.labelLarge, color = SecondaryText, modifier = Modifier.padding(top = 4.dp, bottom = 3.dp))
-                MenuNavigationRow(stringResource(R.string.home_title), Icons.Outlined.Home, selected = tab == AppTab.HOME) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.HOME.name
-                    filterName = FileCategory.ALL.name
-                    query = ""
-                }
-                MenuNavigationRow(stringResource(R.string.storage_title), Icons.Outlined.Storage, selected = tab == AppTab.BROWSE && filter == FileCategory.ALL) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.BROWSE.name
-                    filterName = FileCategory.ALL.name
-                    stack.clear()
-                    rootLocation?.let { stack.add(it) }
-                    query = ""
-                }
-                MenuNavigationRow(stringResource(R.string.tab_clean), Icons.Outlined.CleaningServices, selected = tab == AppTab.CLEAN || tab == AppTab.CLEANER) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.CLEAN.name
-                }
-                MenuNavigationRow(stringResource(R.string.tab_share), Icons.Outlined.Share, selected = tab == AppTab.SHARE) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.SHARE.name
-                }
-                MenuNavigationRow(stringResource(R.string.recents_title), Icons.Outlined.History, selected = tab == AppTab.RECENTS) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.RECENTS.name
-                }
-                MenuNavigationRow(stringResource(R.string.favorites_title), Icons.Outlined.Star, selected = tab == AppTab.FAVORITES) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.FAVORITES.name
-                }
-                MenuNavigationRow(stringResource(R.string.vault_title), Icons.Outlined.Lock, selected = tab == AppTab.SAFE) {
-                    mainMenuExpanded = false
-                    vaultPendingMove = null
-                    tabName = AppTab.SAFE.name
-                }
-                MenuNavigationRow(stringResource(R.string.toolbox_title), Icons.Outlined.Storage, selected = tab == AppTab.TOOLS) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.TOOLS.name
-                }
-                MenuNavigationRow(stringResource(R.string.trash_title), Icons.Outlined.Delete, selected = tab == AppTab.TRASH) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.TRASH.name
-                }
-                MenuNavigationRow(stringResource(R.string.apps_title), Icons.Outlined.Apps, selected = tab == AppTab.APPS) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.APPS.name
-                }
-                MenuNavigationRow(stringResource(R.string.security_title), Icons.Outlined.CheckCircle, selected = tab == AppTab.SECURITY) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.SECURITY.name
-                }
-                MenuNavigationRow(stringResource(R.string.settings_title), Icons.Outlined.Settings, selected = tab == AppTab.SETTINGS) {
-                    mainMenuExpanded = false
-                    tabName = AppTab.SETTINGS.name
-                }
-            }
-        }
     }
 
     if (renameTarget != null) {
